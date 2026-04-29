@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IMCD N.V. — First Principles Research Dashboard</title>
+<meta name="description" content="Hedge-fund quality interactive research dashboard for IMCD N.V. (IMCD NA), the world's largest pure-play specialty chemicals distributor." />
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<!-- Chart.js + plugins -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+<!-- Leaflet for the world map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  :root {
+    --bg-0:#0a0d12;
+    --bg-1:#10141b;
+    --bg-2:#161c25;
+    --bg-3:#1d2530;
+    --line:#252e3c;
+    --line-soft:#1a2230;
+    --txt-0:#f4f6fb;
+    --txt-1:#cbd2dd;
+    --txt-2:#8a93a3;
+    --txt-3:#5a6373;
+    --imcd:#E85D27;          /* IMCD brand orange */
+    --imcd-soft:#f08754;
+    --imcd-deep:#b94512;
+    --accent:#f4a85a;
+    --green:#34d399;
+    --red:#f87171;
+    --blue:#60a5fa;
+    --purple:#a78bfa;
+    --teal:#2dd4bf;
+    --yellow:#fbbf24;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html { scroll-behavior:smooth; scroll-padding-top:74px; }
+  body {
+    background:var(--bg-0);
+    color:var(--txt-0);
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .mono { font-family:'JetBrains Mono', monospace; }
+
+  /* ===== NAV ===== */
+  nav.topnav {
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    background:rgba(10,13,18,0.85);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line-soft);
+    transition:all .25s ease;
+  }
+  nav.topnav .inner {
+    max-width:1480px; margin:0 auto;
+    padding:14px 32px;
+    display:flex; align-items:center; justify-content:space-between; gap:24px;
+  }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:18px; letter-spacing:-0.01em; }
+  .brand .dot { width:10px; height:10px; border-radius:50%; background:var(--imcd); box-shadow:0 0 14px var(--imcd); }
+  .brand .ticker { color:var(--txt-2); font-weight:500; font-size:13px; }
+  .nav-links { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .nav-links a {
+    color:var(--txt-1); text-decoration:none; font-size:13px; font-weight:500;
+    padding:7px 11px; border-radius:7px; transition:all .15s; letter-spacing:0.01em;
+  }
+  .nav-links a:hover { color:var(--imcd); background:rgba(232,93,39,0.08); }
+  .nav-cta {
+    padding:7px 14px; border-radius:8px;
+    background:linear-gradient(135deg, var(--imcd), var(--imcd-deep));
+    color:#fff !important; font-weight:600; font-size:13px;
+  }
+
+  /* ===== LAYOUT ===== */
+  main { max-width:1480px; margin:0 auto; padding:120px 32px 80px; }
+  section { margin-bottom:96px; scroll-margin-top:90px; }
+  .section-tag {
+    display:inline-block; padding:5px 11px; border-radius:6px;
+    background:rgba(232,93,39,0.13); color:var(--imcd-soft);
+    font-size:11px; font-weight:600; letter-spacing:0.12em;
+    text-transform:uppercase; margin-bottom:14px;
+  }
+  h1 { font-size:clamp(36px, 5.5vw, 64px); line-height:1.05; font-weight:800; letter-spacing:-0.025em; }
+  h2 { font-size:clamp(28px, 3.6vw, 42px); line-height:1.1; font-weight:700; letter-spacing:-0.02em; margin-bottom:14px; }
+  h3 { font-size:20px; font-weight:600; letter-spacing:-0.005em; margin-bottom:8px; }
+  h4 { font-size:15px; font-weight:600; color:var(--txt-1); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em; }
+  p { color:var(--txt-1); }
+  .lead { color:var(--txt-1); font-size:18px; line-height:1.65; max-width:880px; }
+  .muted { color:var(--txt-2); }
+  .em-imcd { color:var(--imcd-soft); font-weight:600; }
+  .em-green { color:var(--green); font-weight:600; }
+  .em-red { color:var(--red); font-weight:600; }
+
+  /* ===== HERO ===== */
+  .hero {
+    position:relative;
+    padding:60px 0 40px;
+    border-bottom:1px solid var(--line-soft);
+    margin-bottom:90px;
+  }
+  .hero::before {
+    content:''; position:absolute; top:-120px; right:-120px;
+    width:520px; height:520px; border-radius:50%;
+    background:radial-gradient(circle, rgba(232,93,39,0.18) 0%, transparent 65%);
+    pointer-events:none; z-index:0;
+  }
+  .hero-grid {
+    display:grid; grid-template-columns:1.5fr 1fr; gap:64px;
+    position:relative; z-index:1;
+  }
+  @media (max-width:1024px) { .hero-grid { grid-template-columns:1fr; gap:36px; } }
+  .hero h1 strong { color:var(--imcd-soft); }
+  .hero .subtitle { font-size:20px; color:var(--txt-1); margin-top:18px; max-width:680px; }
+  .hero .stats {
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:32px;
+  }
+  .hero-stat {
+    background:var(--bg-1); border:1px solid var(--line);
+    padding:18px 16px; border-radius:11px;
+  }
+  .hero-stat .lbl { font-size:11px; text-transform:uppercase; color:var(--txt-2); letter-spacing:0.08em; }
+  .hero-stat .val { font-size:24px; font-weight:700; margin-top:5px; font-family:'JetBrains Mono', monospace; }
+  .hero-stat .delta { font-size:12px; margin-top:3px; }
+
+  /* TradingView widget panel */
+  .tv-card {
+    background:var(--bg-1); border:1px solid var(--line);
+    border-radius:14px; padding:8px; height:480px;
+  }
+  .tv-card h4 { padding:10px 12px 0; }
+
+  /* ===== KPI strip ===== */
+  .kpi-strip {
+    display:grid; grid-template-columns:repeat(6, 1fr); gap:14px;
+    margin-top:28px;
+  }
+  @media (max-width:1024px){ .kpi-strip { grid-template-columns:repeat(3,1fr); } }
+  @media (max-width:560px){ .kpi-strip { grid-template-columns:repeat(2,1fr); } }
+  .kpi {
+    background:linear-gradient(180deg, var(--bg-2), var(--bg-1));
+    border:1px solid var(--line); padding:18px 14px; border-radius:11px;
+    transition:all .2s ease;
+  }
+  .kpi:hover { border-color:rgba(232,93,39,0.5); transform:translateY(-2px); }
+  .kpi .num {
+    font-size:26px; font-weight:800;
+    font-family:'JetBrains Mono', monospace;
+    background:linear-gradient(135deg, var(--imcd-soft), var(--accent));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  .kpi .lbl { font-size:11px; color:var(--txt-2); text-transform:uppercase; letter-spacing:0.07em; margin-top:6px; line-height:1.3; }
+  .kpi .src { font-size:10px; color:var(--txt-3); margin-top:4px; }
+
+  /* ===== Cards & generic blocks ===== */
+  .card {
+    background:var(--bg-1); border:1px solid var(--line);
+    border-radius:14px; padding:24px;
+  }
+  .card-strong {
+    background:linear-gradient(180deg, var(--bg-2), var(--bg-1));
+    border:1px solid var(--line); border-radius:14px; padding:24px;
+  }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  .grid-3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:22px; }
+  .grid-4 { display:grid; grid-template-columns:repeat(4, 1fr); gap:18px; }
+  @media (max-width:980px){ .grid-2,.grid-3,.grid-4 { grid-template-columns:1fr; } }
+  @media (max-width:1280px) and (min-width:981px){ .grid-4 { grid-template-columns:repeat(2,1fr); } }
+
+  .pill {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:999px;
+    background:rgba(232,93,39,0.10); color:var(--imcd-soft);
+    font-size:11px; font-weight:600; letter-spacing:0.04em;
+  }
+  .pill.green { background:rgba(52,211,153,0.10); color:var(--green); }
+  .pill.red { background:rgba(248,113,113,0.10); color:var(--red); }
+  .pill.blue { background:rgba(96,165,250,0.10); color:var(--blue); }
+  .pill.gray { background:rgba(138,147,163,0.10); color:var(--txt-2); }
+
+  /* ===== Tabs ===== */
+  .tabs {
+    display:flex; gap:6px; border-bottom:1px solid var(--line);
+    margin-bottom:24px; flex-wrap:wrap;
+  }
+  .tab {
+    padding:10px 16px; cursor:pointer;
+    color:var(--txt-2); font-weight:600; font-size:13px;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+    transition:all .15s; user-select:none;
+  }
+  .tab:hover { color:var(--txt-1); }
+  .tab.active { color:var(--imcd); border-bottom-color:var(--imcd); }
+  .tab-content { display:none; animation:fadein .25s ease; }
+  .tab-content.active { display:block; }
+  @keyframes fadein { from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  /* ===== Table ===== */
+  .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .data-table th, .data-table td {
+    padding:10px 12px; text-align:left;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .data-table th {
+    color:var(--txt-2); font-weight:600; font-size:11px;
+    text-transform:uppercase; letter-spacing:0.06em;
+    background:var(--bg-2);
+  }
+  .data-table td { color:var(--txt-1); }
+  .data-table tbody tr:hover { background:var(--bg-2); }
+  .data-table td.num, .data-table th.num { text-align:right; font-family:'JetBrains Mono', monospace; }
+
+  /* ===== Bull vs Bear ===== */
+  .bb-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
+  @media (max-width:980px){ .bb-grid { grid-template-columns:1fr; } }
+  .bull, .bear {
+    border-radius:14px; padding:26px;
+    border:1px solid var(--line);
+  }
+  .bull { background:linear-gradient(170deg, rgba(52,211,153,0.06), var(--bg-1) 60%); border-color:rgba(52,211,153,0.25); }
+  .bear { background:linear-gradient(170deg, rgba(248,113,113,0.06), var(--bg-1) 60%); border-color:rgba(248,113,113,0.25); }
+  .bull h3 { color:var(--green); }
+  .bear h3 { color:var(--red); }
+  .bb-list li { padding:10px 0; border-bottom:1px dashed var(--line-soft); list-style:none; }
+  .bb-list li:last-child { border-bottom:none; }
+  .bb-list li strong { display:block; color:var(--txt-0); font-weight:600; margin-bottom:3px; font-size:14px; }
+  .bb-list li span { color:var(--txt-2); font-size:13px; }
+
+  /* ===== Map ===== */
+  #map { height:500px; border-radius:14px; border:1px solid var(--line); background:var(--bg-1); z-index:0; }
+  .leaflet-popup-content-wrapper { background:var(--bg-2); color:var(--txt-0); border:1px solid var(--line); border-radius:8px; }
+  .leaflet-popup-tip { background:var(--bg-2); }
+  .leaflet-popup-content { font-family:'Inter',sans-serif; font-size:13px; }
+  .leaflet-popup-content strong { color:var(--imcd-soft); }
+  .leaflet-container { background:#0a0d12; font-family:inherit; }
+  .leaflet-control-attribution { background:rgba(10,13,18,0.7) !important; color:var(--txt-3) !important; font-size:10px; }
+  .leaflet-control-attribution a { color:var(--txt-2) !important; }
+
+  /* ===== Chart canvas ===== */
+  .chart-wrap { position:relative; height:340px; }
+  .chart-wrap.tall { height:420px; }
+
+  /* ===== Timeline ===== */
+  .timeline { position:relative; padding-left:28px; }
+  .timeline::before {
+    content:''; position:absolute; left:8px; top:6px; bottom:6px;
+    width:2px; background:linear-gradient(180deg, var(--imcd) 0%, var(--imcd-deep) 100%);
+  }
+  .tl-item { position:relative; padding-bottom:18px; }
+  .tl-item::before {
+    content:''; position:absolute; left:-26px; top:6px;
+    width:14px; height:14px; border-radius:50%; background:var(--imcd);
+    box-shadow:0 0 0 4px var(--bg-0);
+  }
+  .tl-date { font-size:11px; color:var(--txt-2); font-weight:600; letter-spacing:0.05em; text-transform:uppercase; }
+  .tl-title { font-size:14px; font-weight:600; margin-top:2px; }
+  .tl-body { font-size:13px; color:var(--txt-2); margin-top:3px; }
+
+  /* ===== Footer ===== */
+  footer {
+    border-top:1px solid var(--line-soft);
+    padding:36px 32px;
+    color:var(--txt-3);
+    font-size:12px;
+    text-align:center;
+    margin-top:80px;
+  }
+
+  /* ===== Misc utilities ===== */
+  .row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  .row-between { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; }
+  .badge { display:inline-block; padding:3px 8px; border-radius:5px; background:var(--bg-3); font-size:11px; font-weight:600; color:var(--txt-1); }
+  .meter { width:100%; height:6px; background:var(--bg-3); border-radius:99px; overflow:hidden; margin:6px 0; }
+  .meter > div { height:100%; background:linear-gradient(90deg, var(--imcd), var(--accent)); border-radius:99px; }
+
+  ul.bullets { list-style:none; padding:0; }
+  ul.bullets li { padding:8px 0 8px 22px; position:relative; color:var(--txt-1); border-bottom:1px solid var(--line-soft); }
+  ul.bullets li::before { content:'›'; position:absolute; left:4px; color:var(--imcd); font-weight:700; }
+  ul.bullets li:last-child { border-bottom:none; }
+
+  /* small inline tag */
+  .tag { display:inline-block; padding:2px 7px; border-radius:4px; background:rgba(232,93,39,0.12); color:var(--imcd-soft); font-size:11px; font-weight:600; margin:0 3px; }
+
+  /* concept cards */
+  .concept {
+    background:var(--bg-1); border:1px solid var(--line); border-radius:11px;
+    padding:18px 18px; transition:all .2s;
+  }
+  .concept:hover { border-color:rgba(232,93,39,0.4); }
+  .concept .icon {
+    width:38px; height:38px; border-radius:9px;
+    background:rgba(232,93,39,0.15); color:var(--imcd-soft);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; margin-bottom:12px; font-family:'JetBrains Mono', monospace;
+  }
+
+  /* divider */
+  .div-h { height:1px; background:var(--line-soft); margin:26px 0; }
+
+  /* legend */
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--txt-2); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { width:10px; height:10px; border-radius:2px; display:inline-block; }
+
+  /* Sticky banner price */
+  .price-banner {
+    position:fixed; bottom:18px; right:18px; z-index:90;
+    background:linear-gradient(135deg, var(--bg-2), var(--bg-1));
+    border:1px solid var(--line);
+    padding:10px 16px; border-radius:11px;
+    font-size:12px; color:var(--txt-2); font-family:'JetBrains Mono',monospace;
+    box-shadow:0 12px 30px rgba(0,0,0,0.4);
+  }
+  .price-banner strong { color:var(--imcd-soft); }
+</style>
+</head>
+<body>
+
+<!-- =============== NAV =============== -->
+<nav class="topnav">
+  <div class="inner">
+    <div class="brand">
+      <span class="dot"></span>
+      IMCD <span class="ticker">· IMCD NA · Euronext Amsterdam</span>
+    </div>
+    <div class="nav-links">
+      <a href="#primer">Primer</a>
+      <a href="#business">Business Model</a>
+      <a href="#segments">Segments</a>
+      <a href="#footprint">Footprint</a>
+      <a href="#supply">Supply Chain</a>
+      <a href="#financials">Financials</a>
+      <a href="#moat">Moat</a>
+      <a href="#ma">M&amp;A</a>
+      <a href="#valuation">Valuation</a>
+      <a href="#bullbear">Bull / Bear</a>
+      <a href="#risks">Risks</a>
+      <a href="#glossary">Glossary</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+<!-- =============== HERO =============== -->
+<section class="hero">
+  <div class="hero-grid">
+    <div>
+      <div class="section-tag">Specialty Chemicals · Distribution · Netherlands</div>
+      <h1>The world's largest <strong>pure-play specialty chemicals distributor</strong> — explained from first principles.</h1>
+      <p class="subtitle">
+        IMCD N.V. (Rotterdam, est. 1995, IPO 2014) connects ~3,000 chemical &amp; ingredient
+        suppliers to 71,000+ small &amp; mid-sized customers across 60+ countries — without
+        owning a factory or a warehouse. This dashboard explains exactly how that works,
+        why it generates ~10% ROIC at 91% cash conversion, and where the bull and bear cases collide.
+      </p>
+
+      <div class="stats">
+        <div class="hero-stat">
+          <div class="lbl">Share Price (Apr 14)</div>
+          <div class="val">€91.18</div>
+          <div class="delta muted">+18% YTD · -50% from 2022 peak</div>
+        </div>
+        <div class="hero-stat">
+          <div class="lbl">Market Cap</div>
+          <div class="val">€5.4B</div>
+          <div class="delta muted">59.1m shares</div>
+        </div>
+        <div class="hero-stat">
+          <div class="lbl">Consensus PT</div>
+          <div class="val">€110</div>
+          <div class="delta muted">+20% upside · Buy bias</div>
+        </div>
+      </div>
+
+      <div class="kpi-strip">
+        <div class="kpi"><div class="num" data-counter="4779" data-suffix="M">0M</div><div class="lbl">FY25 Revenue (€)</div><div class="src">Annual Report 2025</div></div>
+        <div class="kpi"><div class="num" data-counter="497.7" data-decimals="1" data-suffix="M">0M</div><div class="lbl">FY25 Op. EBITA (€)</div><div class="src">10.4% margin</div></div>
+        <div class="kpi"><div class="num" data-counter="465.2" data-decimals="1" data-suffix="M">0M</div><div class="lbl">FY25 Free Cash Flow (€)</div><div class="src">91.4% conversion</div></div>
+        <div class="kpi"><div class="num" data-counter="60" data-suffix="+">0</div><div class="lbl">Countries</div><div class="src">118 offices</div></div>
+        <div class="kpi"><div class="num" data-counter="86">0</div><div class="lbl">Technical Labs</div><div class="src">+6 added in 2025</div></div>
+        <div class="kpi"><div class="num" data-counter="100" data-suffix="+">0</div><div class="lbl">Acquisitions Since IPO</div><div class="src">€2.2B deployed</div></div>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="tv-card">
+        <h4 style="color:var(--txt-2);font-size:12px;letter-spacing:0.08em;">Live Price · IMCD AS · Euronext Amsterdam</h4>
+        <!-- TradingView Widget BEGIN -->
+        <div class="tradingview-widget-container" style="height:100%;width:100%;padding-top:6px;">
+          <div id="tv-widget" style="height:calc(100% - 28px);width:100%;"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {
+            "autosize": true,
+            "symbol": "EURONEXT:IMCD",
+            "interval": "W",
+            "timezone": "Europe/Amsterdam",
+            "theme": "dark",
+            "style": "3",
+            "locale": "en",
+            "container_id":"tv-widget",
+            "hide_side_toolbar": true,
+            "allow_symbol_change": false,
+            "studies": [],
+            "save_image": false,
+            "backgroundColor": "rgba(16,20,27,1)",
+            "gridColor": "rgba(37, 46, 60, 0.5)"
+          }
+          </script>
+        </div>
+        <!-- TradingView Widget END -->
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============== INDUSTRY PRIMER (FIRST PRINCIPLES) =============== -->
+<section id="primer">
+  <div class="section-tag">Section 1 · Industry Primer</div>
+  <h2>What does a "specialty chemicals distributor" actually <em>do</em>?</h2>
+  <p class="lead">
+    Imagine a giant chemical maker like BASF that produces a precise polymer additive — say, a
+    rheology modifier used in 0.05% of a sunscreen formulation. BASF can sell this in 25-tonne lots
+    to L'Oréal directly. But what about the 71,000 small &amp; medium beauty brands worldwide that
+    each want 50 kilos? Selling to them is too expensive for BASF. So BASF outsources that
+    "long tail" to a <em class="em-imcd">specialty distributor</em> — IMCD — that breaks down
+    big shipments, gives technical advice, helps reformulate the product, handles regulations,
+    and aggregates thousands of micro-orders into a profitable channel.
+  </p>
+
+  <div class="grid-3" style="margin-top:32px;">
+    <div class="concept">
+      <div class="icon">1</div>
+      <h3>Specialty ≠ Commodity</h3>
+      <p class="muted" style="font-size:13.5px;">
+        <strong style="color:var(--txt-0);">Commodity</strong> chemicals (sulfuric acid, methanol)
+        compete on price &amp; volume. <strong style="color:var(--txt-0);">Specialty</strong>
+        chemicals are functional ingredients — they <em>do</em> something specific
+        (preserve a vaccine, give a paint its sheen, lubricate a wind-turbine bearing).
+        They make up <strong>~0.5–5% of an end-product's cost</strong> but
+        often <strong>determine its performance</strong>, so customers are
+        relatively price-insensitive.
+      </p>
+    </div>
+    <div class="concept">
+      <div class="icon">2</div>
+      <h3>Why distributors exist</h3>
+      <p class="muted" style="font-size:13.5px;">
+        Big chemical suppliers (Tier 1: BASF, Croda, Givaudan, Lubrizol) have <strong>thousands of products</strong>
+        but want to focus on <strong>thousands of large customers</strong>. Distributors like IMCD plug the gap:
+        they aggregate <strong>fragmented SME demand</strong>, hold local inventory, give
+        application advice, and provide compliance &amp; regulatory paperwork — services
+        suppliers don't want to do themselves.
+      </p>
+    </div>
+    <div class="concept">
+      <div class="icon">3</div>
+      <h3>Asset-Light vs Asset-Heavy</h3>
+      <p class="muted" style="font-size:13.5px;">
+        <strong style="color:var(--txt-0);">Asset-heavy</strong> distributors (Brenntag, Univar)
+        own warehouses, trucks &amp; blending plants — high capex, lower margins,
+        but better in volatile markets. <strong style="color:var(--txt-0);">Asset-light</strong>
+        distributors (IMCD, Azelis) <em>outsource</em> all that to 3PLs and focus on
+        <em>technical formulation</em>. Result: ~25% gross margin vs Brenntag's
+        ~14%, and ~10% ROIC vs ~4%.
+      </p>
+    </div>
+  </div>
+
+  <!-- Visual Value Chain -->
+  <div class="card" style="margin-top:30px;">
+    <h3 style="margin-bottom:18px;">The specialty chemicals value chain — IMCD sits in the middle</h3>
+    <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:14px; align-items:stretch;">
+      <div style="text-align:center;padding:18px 10px;background:var(--bg-2);border-radius:9px;border:1px solid var(--line);">
+        <div style="font-size:11px;color:var(--txt-2);text-transform:uppercase;letter-spacing:0.08em;">Tier 1 Producers</div>
+        <div style="font-weight:700;margin-top:8px;">BASF · Croda<br>Lubrizol · Givaudan</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:8px;">~3,000 principals</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;color:var(--imcd);font-size:24px;">→</div>
+      <div style="text-align:center;padding:18px 10px;background:linear-gradient(135deg, rgba(232,93,39,0.18), var(--bg-2));border-radius:9px;border:1px solid var(--imcd);">
+        <div style="font-size:11px;color:var(--imcd-soft);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;">IMCD</div>
+        <div style="font-weight:700;margin-top:8px;">Distributor &amp;<br>Technical Partner</div>
+        <div style="font-size:11px;color:var(--txt-2);margin-top:8px;">~25% gross margin captured</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;color:var(--imcd);font-size:24px;">→</div>
+      <div style="text-align:center;padding:18px 10px;background:var(--bg-2);border-radius:9px;border:1px solid var(--line);">
+        <div style="font-size:11px;color:var(--txt-2);text-transform:uppercase;letter-spacing:0.08em;">Customer Base</div>
+        <div style="font-weight:700;margin-top:8px;">L'Oréal · Unilever<br>71,000+ SMEs</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:8px;">Beauty · Food · Pharma · Coatings</div>
+      </div>
+    </div>
+    <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--line-soft); font-size:13px; color:var(--txt-2);">
+      <strong style="color:var(--imcd-soft);">Why this is defensible:</strong>
+      Specialty distributors sit on <strong>3–5 year exclusive contracts</strong> with their suppliers and embed
+      themselves through <strong>technical labs</strong> (86 globally for IMCD) where they actively co-formulate
+      products with customers. Switching costs run both ways: the supplier loses local market access; the customer
+      loses formulation expertise &amp; regulatory paperwork.
+    </div>
+  </div>
+
+  <!-- Industry economics -->
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card-strong">
+      <h3>How the industry is structured</h3>
+      <p class="muted" style="font-size:13.5px;margin-bottom:14px;">
+        The global specialty chemicals distribution market is highly fragmented. The
+        <strong>top 10 distributors control only ~13% of the market</strong>, with the
+        remaining 87% in the hands of regional and country-specific players. This is the
+        playground for consolidation.
+      </p>
+      <table class="data-table">
+        <thead>
+          <tr><th>Player</th><th>Type</th><th class="num">Revenue</th><th class="num">Mkt Share</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Brenntag</strong></td><td>Asset-heavy full-line</td><td class="num">~$17.1B</td><td class="num">~5%</td></tr>
+          <tr><td style="color:var(--imcd-soft);"><strong>IMCD</strong></td><td>Asset-light pure-play</td><td class="num">~$5.4B</td><td class="num">~2%</td></tr>
+          <tr><td><strong>Univar (Windsor)</strong></td><td>Asset-heavy full-line</td><td class="num">~$8.9B</td><td class="num">~2%</td></tr>
+          <tr><td><strong>Azelis</strong></td><td>Asset-light pure-play</td><td class="num">~$4.7B</td><td class="num">~2%</td></tr>
+          <tr><td colspan="2" style="color:var(--txt-3);">Top 10 combined</td><td colspan="2" class="num" style="color:var(--imcd-soft);">~13% of market</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:14px; font-size:12px; color:var(--txt-3);">Source: Jefferies Research, AlphaSense, Equity Screener.</div>
+    </div>
+    <div class="card-strong">
+      <h3>Why outsourcing is structurally accelerating</h3>
+      <p class="muted" style="font-size:13.5px;margin-bottom:14px;">
+        Today, only <strong>~17–20% of specialty chemical distribution is outsourced</strong>.
+        Jefferies expects this rate to climb steadily as European producers restructure to compete
+        with low-cost Chinese rivals. Examples include Kemira publicly stating it will outsource
+        more in 2026 to drive cost savings.
+      </p>
+      <ul class="bullets">
+        <li><strong>Producers want to simplify.</strong> Selling 50,000 SKUs to 71,000 customers is a logistical nightmare for a Tier-1 producer focused on R&amp;D.</li>
+        <li><strong>Long-tail SMEs are unreachable directly.</strong> SMEs need 50 kg, not 25 tonnes — and they need formulation help.</li>
+        <li><strong>Regulatory complexity is rising.</strong> Each market (REACH in EU, TSCA in US) requires registrations a regional distributor handles.</li>
+        <li><strong>Chinese suppliers need a "Western on-ramp."</strong> They lack regulatory + technical sales infrastructure to break into Europe/US.</li>
+      </ul>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== BUSINESS MODEL =============== -->
+<section id="business">
+  <div class="section-tag">Section 2 · Business Model</div>
+  <h2>How IMCD actually makes money — &amp; why ROIC is 2.5× Brenntag's</h2>
+  <p class="lead">
+    IMCD's business model has three reinforcing pillars: <em class="em-imcd">technical formulation</em>
+    (where margin is created), <em class="em-imcd">asset-light delivery</em> (where capital is preserved),
+    and <em class="em-imcd">M&amp;A consolidation</em> (where scale is bought).
+  </p>
+
+  <!-- 4-pillar visual -->
+  <div class="grid-4" style="margin-top:32px;">
+    <div class="card">
+      <div class="pill">PILLAR 1</div>
+      <h3 style="margin-top:10px;">Asset-Light Operations</h3>
+      <p style="font-size:13.5px; color:var(--txt-2);">
+        IMCD owns no warehouses, trucks, or blending plants. <strong>1,000+ third-party logistics
+        partners</strong> handle physical fulfillment. Capex runs at ~0.4% of sales vs Brenntag's ~1.5%.
+      </p>
+      <div class="meter"><div style="width:90%;"></div></div>
+      <div class="muted" style="font-size:11px;">ROIC: 10.4% vs peers 4.4%</div>
+    </div>
+    <div class="card">
+      <div class="pill">PILLAR 2</div>
+      <h3 style="margin-top:10px;">Technical Formulation Labs</h3>
+      <p style="font-size:13.5px; color:var(--txt-2);">
+        <strong>86 application labs</strong> globally — Beauty Studio Paris, Life Science Hub Shanghai —
+        where IMCD chemists co-create finished formulations with customers. This is the moat.
+      </p>
+      <div class="meter"><div style="width:78%;"></div></div>
+      <div class="muted" style="font-size:11px;">+6 new labs in FY25</div>
+    </div>
+    <div class="card">
+      <div class="pill">PILLAR 3</div>
+      <h3 style="margin-top:10px;">Exclusive Supplier Contracts</h3>
+      <p style="font-size:13.5px; color:var(--txt-2);">
+        <strong>3-5 year mutually exclusive</strong> distribution contracts with principals like BASF,
+        BYK, Givaudan. Top 10 suppliers = 37% of gross profit. Curated, not amassed.
+      </p>
+      <div class="meter"><div style="width:65%;"></div></div>
+      <div class="muted" style="font-size:11px;">3,000+ supplier relationships</div>
+    </div>
+    <div class="card">
+      <div class="pill">PILLAR 4</div>
+      <h3 style="margin-top:10px;">Consolidation by M&amp;A</h3>
+      <p style="font-size:13.5px; color:var(--txt-2);">
+        100+ deals since IPO 2014, <strong>€2.2 B deployed</strong>. "Pillar B growth": acquire
+        local distributor, plug in IMCD's global principals → cross-sell triples target's earnings.
+      </p>
+      <div class="meter"><div style="width:88%;"></div></div>
+      <div class="muted" style="font-size:11px;">7 deals (€437M) in FY25</div>
+    </div>
+  </div>
+
+  <!-- Unit economics -->
+  <div class="card-strong" style="margin-top:32px;">
+    <h3>How a single customer order becomes IMCD profit</h3>
+    <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; margin-top:18px; align-items:stretch; text-align:center;">
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div style="font-size:11px;color:var(--txt-2);">CUSTOMER ORDER</div>
+        <div style="font-weight:700;margin-top:6px;font-size:18px;">€100</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:4px;">SME beauty brand orders 50 kg specialty emulsifier</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div style="font-size:11px;color:var(--txt-2);">- COGS</div>
+        <div style="font-weight:700;margin-top:6px;font-size:18px;color:var(--red);">€75</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:4px;">Paid to BASF / Croda / Givaudan</div>
+      </div>
+      <div style="padding:14px 8px;background:rgba(232,93,39,0.10);border-radius:8px;border:1px solid var(--imcd);">
+        <div style="font-size:11px;color:var(--imcd-soft);">= GROSS PROFIT</div>
+        <div style="font-weight:700;margin-top:6px;font-size:18px;color:var(--imcd-soft);">€25</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:4px;">25% gross margin</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div style="font-size:11px;color:var(--txt-2);">- SG&amp;A</div>
+        <div style="font-weight:700;margin-top:6px;font-size:18px;color:var(--red);">€14.6</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:4px;">Sales, marketing, lab tech, IT</div>
+      </div>
+      <div style="padding:14px 8px;background:rgba(52,211,153,0.08);border-radius:8px;border:1px solid var(--green);">
+        <div style="font-size:11px;color:var(--green);">= EBITA</div>
+        <div style="font-weight:700;margin-top:6px;font-size:18px;color:var(--green);">€10.4</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:4px;">10.4% EBITA margin</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div style="font-size:11px;color:var(--txt-2);">→ FCF (after tax/interest)</div>
+        <div style="font-weight:700;margin-top:6px;font-size:18px;color:var(--accent);">€9.7</div>
+        <div style="font-size:11px;color:var(--txt-3);margin-top:4px;">91% cash conversion of EBITA</div>
+      </div>
+    </div>
+    <div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--line-soft); font-size:13px; color:var(--txt-2);">
+      <strong style="color:var(--imcd-soft);">Conversion margin (EBITA / Gross Profit) = 41.7% in FY25</strong> —
+      down from 44.2% peak in 2022 due to inflation in SG&amp;A. This ratio is the cleanest measure of
+      operational efficiency for a distributor; compare vs Azelis (42.4%) and Brenntag (~32%).
+    </div>
+  </div>
+
+  <!-- Customer/Supplier flow -->
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card-strong">
+      <h3>What "value-add" looks like in practice</h3>
+      <ul class="bullets" style="margin-top:8px;">
+        <li><strong>Bulk-breaking &amp; mixing.</strong> A supplier ships 25-tonne tankers; IMCD's 3PLs split into 50 kg drums.</li>
+        <li><strong>Application labs.</strong> Customer says "I need a sunscreen that won't sting eyes." IMCD chemist proposes 4 candidate formulations.</li>
+        <li><strong>Stability &amp; regulatory testing.</strong> 24-month accelerated aging studies, REACH/TSCA registrations.</li>
+        <li><strong>Local inventory.</strong> Customer needs a 5-day lead-time, not 12 weeks from China.</li>
+        <li><strong>Cross-sell.</strong> Sales rep walks in to sell emulsifier, walks out with order for preservative + thickener too.</li>
+        <li><strong>One-stop-shop.</strong> ~15% of portfolio is "base" commodities, kept to avoid customer buying elsewhere.</li>
+      </ul>
+    </div>
+    <div class="card-strong">
+      <h3>Digital infrastructure (the "invisible moat")</h3>
+      <p style="font-size:13.5px; color:var(--txt-2); margin-bottom:14px;">
+        IMCD runs on a single, fully cloud-based global stack: <span class="tag">JD Edwards ERP</span>
+        <span class="tag">Salesforce CRM</span> <span class="tag">Centralized data lake</span>.
+        That uniformity is exactly why it can integrate acquired companies in months, not years.
+      </p>
+      <ul class="bullets">
+        <li><strong>MyIMCD</strong> — 24/7 B2B customer portal: catalog, samples, tech docs, order tracking.</li>
+        <li><strong>SalesAssistant</strong> — AI sales tool launched 2025, gives reps cross-sell suggestions in real-time.</li>
+        <li><strong>Digital Labs &amp; Alchemy</strong> — connects all 86 labs into a shared knowledge graph.</li>
+        <li><strong>Customer Care 360</strong> — unified inside-sales dashboard across regional hubs.</li>
+      </ul>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== SEGMENTS =============== -->
+<section id="segments">
+  <div class="section-tag">Section 3 · Segments &amp; Markets</div>
+  <h2>What IMCD sells, to whom, in which end-markets</h2>
+  <p class="lead">
+    IMCD is organized into 8 Business Groups under two umbrella segments. Life Sciences is
+    higher-margin, lower-volume, more defensive. Industrial is more cyclical and tied to
+    construction &amp; auto end-markets.
+  </p>
+
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card-strong">
+      <h3 style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Life Sciences <span class="pill green" style="margin-left:6px;">53% of FY25 Revenue</span></span>
+        <span class="muted" style="font-size:13px;">Higher margin · less cyclical</span>
+      </h3>
+      <table class="data-table" style="margin-top:14px;">
+        <tbody>
+          <tr><td><strong>Pharmaceuticals</strong></td><td class="muted">APIs, excipients, OTC. Defensive — but India hit by US trade tariff uncertainty 2025.</td></tr>
+          <tr><td><strong>Beauty &amp; Personal Care</strong></td><td class="muted">Emulsifiers, actives, sun-care. Beauty Studio Paris co-creates with brands.</td></tr>
+          <tr><td><strong>Food &amp; Nutrition</strong></td><td class="muted">Flavors, vitamins, sweeteners, sports nutrition. Strong M&amp;A focus (Willows, Tillmanns, Daoqin).</td></tr>
+          <tr><td><strong>Home Care &amp; I&amp;I</strong></td><td class="muted">Surfactants, fragrances for detergents &amp; institutional cleaning.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-strong">
+      <h3 style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Industrial <span class="pill blue" style="margin-left:6px;">47% of FY25 Revenue</span></span>
+        <span class="muted" style="font-size:13px;">More cyclical · tied to auto, construction</span>
+      </h3>
+      <table class="data-table" style="margin-top:14px;">
+        <tbody>
+          <tr><td><strong>Coatings &amp; Construction</strong></td><td class="muted">Resins, pigments, additives for paints &amp; concrete. Most exposed to construction cycle.</td></tr>
+          <tr><td><strong>Advanced Materials</strong></td><td class="muted">Polymers for electronics, composites, 3D printing. Higher tech, smaller scale.</td></tr>
+          <tr><td><strong>Lubricants &amp; Energy</strong></td><td class="muted">Specialty additives for industrial &amp; automotive lubes. Lubrizol is key supplier.</td></tr>
+          <tr><td><strong>Industrial Solutions</strong></td><td class="muted">Catch-all: agrochemicals, water treatment, mining chemicals.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Segment & Geography Charts -->
+  <div class="grid-2" style="margin-top:32px;">
+    <div class="card">
+      <h3>Revenue by Segment (FY25)</h3>
+      <div class="chart-wrap" style="height:300px;"><canvas id="segChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Revenue by Region (FY25)</h3>
+      <div class="chart-wrap" style="height:300px;"><canvas id="geoChart"></canvas></div>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== GEOGRAPHIC FOOTPRINT =============== -->
+<section id="footprint">
+  <div class="section-tag">Section 4 · Global Footprint</div>
+  <h2>Where IMCD operates — 60+ countries, 118 offices, 86 labs</h2>
+  <p class="lead">
+    The map below visualizes IMCD's primary office locations and 2025 acquisition geography.
+    EMEA remains the dominant region (43% of revenue) but Asia Pacific is the fastest-growing
+    structural opportunity. Click any pin for context.
+  </p>
+
+  <div id="map" style="margin-top:24px;"></div>
+
+  <div class="grid-3" style="margin-top:24px;">
+    <div class="card">
+      <h4>EMEA</h4>
+      <div style="font-size:30px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--imcd-soft);">€2,078M</div>
+      <div class="muted" style="font-size:13px;">43% of FY25 group revenue</div>
+      <div class="meter"><div style="width:43%;"></div></div>
+      <div style="font-size:12px; color:var(--txt-2); margin-top:8px;">
+        EBITA margin 11.1% (FY25) · Mature region · 2025 deals: Tillmanns (Italy), Tecom &amp; Ferrer (Spain), Willows (UK/Ireland)
+      </div>
+    </div>
+    <div class="card">
+      <h4>Asia-Pacific</h4>
+      <div style="font-size:30px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--imcd-soft);">€1,252M</div>
+      <div class="muted" style="font-size:13px;">26% of FY25 group revenue</div>
+      <div class="meter"><div style="width:26%;"></div></div>
+      <div style="font-size:12px; color:var(--txt-2); margin-top:8px;">
+        EBITA margin 12.6% (FY25) · Highest growth · 2025 deals: Daoqin (China), Dong Yang FT &amp; YCAM (Korea), Trichem (India)
+      </div>
+    </div>
+    <div class="card">
+      <h4>Americas</h4>
+      <div style="font-size:30px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--imcd-soft);">€1,448M</div>
+      <div class="muted" style="font-size:13px;">30% (NA 20% + LatAm 10%)</div>
+      <div class="meter"><div style="width:30%;"></div></div>
+      <div style="font-size:12px; color:var(--txt-2); margin-top:8px;">
+        EBITA margin 9.9% (FY25, US weak) · LatAm under-represented vs peers · 2025 deal: Apus Química (Chile)
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== SUPPLY CHAIN =============== -->
+<section id="supply">
+  <div class="section-tag">Section 5 · Supply Chain &amp; Ecosystem</div>
+  <h2>The actual supply chain map — upstream principals, downstream SMEs, 1,000+ 3PLs</h2>
+  <p class="lead">
+    IMCD's competitive position comes from <em class="em-imcd">scale-driven complexity management</em>:
+    aggregating 71,000 small customers (most chemical producers don't want to deal with) and serving them
+    via 1,000+ outsourced logistics partners. Below: the stakeholder map.
+  </p>
+
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card-strong">
+      <h3 style="display:flex;align-items:center;gap:10px;">
+        <span style="background:rgba(96,165,250,0.15);color:var(--blue);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;">UPSTREAM</span>
+        Tier-1 Principal Suppliers
+      </h3>
+      <p style="font-size:13.5px;color:var(--txt-2);margin:8px 0 14px;">
+        ~3,000 supplier relationships. Top 10 = <strong>37% of gross profit</strong>. Contracts are
+        typically <strong>3–5 years, mutually exclusive</strong> by region/product line.
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Supplier</th><th>Sector</th><th>Risk</th></tr></thead>
+        <tbody>
+          <tr><td><strong>BASF</strong></td><td>Specialty chemicals (Germany)</td><td class="muted">Principal insourcing; Chinese pricing</td></tr>
+          <tr><td><strong>BYK</strong></td><td>Additives &amp; instruments (Germany)</td><td class="muted">Supply bottlenecks</td></tr>
+          <tr><td><strong>Givaudan</strong></td><td>Flavors &amp; fragrances (Switzerland)</td><td class="muted">Beauty/nutrition demand cycle</td></tr>
+          <tr><td><strong>Lubrizol</strong></td><td>Lube additives (USA)</td><td class="muted">Auto/industrial cyclicality</td></tr>
+          <tr><td><strong>Croda &amp; Ashland</strong></td><td>Specialty actives (Global)</td><td class="muted">Tariffs, supply chain delays</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-strong">
+      <h3 style="display:flex;align-items:center;gap:10px;">
+        <span style="background:rgba(232,93,39,0.15);color:var(--imcd-soft);padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;">DOWNSTREAM</span>
+        Customers &amp; Logistics
+      </h3>
+      <p style="font-size:13.5px;color:var(--txt-2);margin:8px 0 14px;">
+        71,000+ end customers across 60+ countries. Order volumes too small for direct supplier sales.
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Customer / Partner</th><th>Type</th><th>Risk</th></tr></thead>
+        <tbody>
+          <tr><td><strong>L'Oréal · Unilever · Estée Lauder</strong></td><td>Multinational anchors</td><td class="muted">Direct-sourcing risk</td></tr>
+          <tr><td><strong>Tier 2/3 SMEs</strong></td><td>Diversified (~71,000)</td><td class="muted">Insolvency in downturns</td></tr>
+          <tr><td><strong>1,000+ 3PL partners</strong></td><td>Outsourced warehousing &amp; fulfillment</td><td class="muted">Freight cost inflation, ME conflict</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-strong" style="margin-top:28px;">
+    <h3>Macro &amp; geopolitical pressures (April 2026 snapshot)</h3>
+    <div class="grid-3" style="margin-top:14px;">
+      <div>
+        <h4 style="color:var(--red);">Middle East Conflict</h4>
+        <p class="muted" style="font-size:13px;">Has triggered substantial cost inflation across <strong>fuel, freight, petrochemical inputs</strong>. Suppliers implementing immediate / phased price hikes — IMCD historically benefits from supply-chain shocks (price/volume optionality).</p>
+      </div>
+      <div>
+        <h4 style="color:var(--yellow);">US Tariff Uncertainty</h4>
+        <p class="muted" style="font-size:13px;">Customers shifting to <strong>smaller, just-in-time orders</strong>; many have halted ordering completely. India pharma weakness specifically tied to US-India trade discussions.</p>
+      </div>
+      <div>
+        <h4 style="color:var(--purple);">Chinese Producer Up-Stack</h4>
+        <p class="muted" style="font-size:13px;">Domestic Chinese over-capacity is forcing producers up the value chain into <strong>semi-specialties &amp; specialties</strong>. Pressure on Western principals — but a tail-wind for distributors who provide their "Western on-ramp."</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== FINANCIALS =============== -->
+<section id="financials">
+  <div class="section-tag">Section 6 · Financials</div>
+  <h2>From €195M revenue at IPO (2014) to €4.8B today — the financial story</h2>
+  <p class="lead">
+    Below: the long financial history (2011–2030E) from the Goldman Sachs IMCD model and Jefferies sell-side.
+    Note the stair-step: IPO in 2014 enabled M&amp;A acceleration; FY21–22 was the post-COVID restocking peak;
+    FY23–25 saw destocking + tariff-led demand softness; FY26E+ assumes inflationary recovery.
+  </p>
+
+  <!-- Tabs for financial views -->
+  <div class="tabs" style="margin-top:30px;">
+    <div class="tab active" data-tab="rev">Revenue &amp; Growth</div>
+    <div class="tab" data-tab="profit">Profit &amp; Margins</div>
+    <div class="tab" data-tab="cash">Cash Flow</div>
+    <div class="tab" data-tab="bs">Balance Sheet</div>
+    <div class="tab" data-tab="organic">Organic vs M&amp;A</div>
+  </div>
+
+  <div class="tab-content active" data-tab="rev">
+    <div class="card">
+      <h3>Group Revenue (€M) — 2011–2030E</h3>
+      <div class="chart-wrap tall"><canvas id="revChart"></canvas></div>
+      <div class="legend" style="margin-top:14px;">
+        <span><i style="background:var(--imcd);"></i> Actual</span>
+        <span><i style="background:var(--imcd-soft);opacity:0.5;"></i> GS / Jefferies forecast</span>
+      </div>
+      <p class="muted" style="font-size:13px;margin-top:12px;">
+        ~26x revenue growth since IPO (2014) — driven by ~75% M&amp;A and ~25% organic over the period.
+        FY25 saw +1% nominal growth, entirely from acquisitions; organic growth stalled near 0% on
+        weak chemical demand &amp; FX.
+      </p>
+    </div>
+  </div>
+
+  <div class="tab-content" data-tab="profit">
+    <div class="grid-2">
+      <div class="card">
+        <h3>Gross Margin Trajectory (%)</h3>
+        <div class="chart-wrap"><canvas id="gmChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>EBITA Margin Trajectory (%)</h3>
+        <div class="chart-wrap"><canvas id="ebitaMarginChart"></canvas></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px;">
+      <h3>Conversion Margin (EBITA / Gross Profit) — the operational efficiency story</h3>
+      <div class="chart-wrap"><canvas id="convChart"></canvas></div>
+      <p class="muted" style="font-size:13px;margin-top:12px;">
+        <strong style="color:var(--imcd-soft);">The single most important KPI for a distributor.</strong>
+        Conversion margin tells you what % of every euro of gross profit makes it to operating profit.
+        IMCD's peaked at 48% in 2022; 41.7% in FY25 reflects inflation-driven SG&amp;A creep. Recovery to 42–43%
+        is the bull case mechanic.
+      </p>
+    </div>
+  </div>
+
+  <div class="tab-content" data-tab="cash">
+    <div class="card">
+      <h3>Free Cash Flow (€M) — the standout story</h3>
+      <div class="chart-wrap tall"><canvas id="fcfChart"></canvas></div>
+    </div>
+    <div class="grid-3" style="margin-top:18px;">
+      <div class="card">
+        <h4>FY25 Cash Conversion</h4>
+        <div style="font-size:34px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--green);">91.4%</div>
+        <p class="muted" style="font-size:12.5px;">FCF / EBITA. Up 8.7pp YoY despite weaker P&amp;L. Working capital release drove this.</p>
+      </div>
+      <div class="card">
+        <h4>WC Investment Reduction</h4>
+        <div style="font-size:34px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent);">-62%</div>
+        <p class="muted" style="font-size:12.5px;">FY25 WC investment fell to €32.1M from €83.4M as inventory normalised.</p>
+      </div>
+      <div class="card">
+        <h4>FY25 FCF Yield</h4>
+        <div style="font-size:34px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--blue);">~8.6%</div>
+        <p class="muted" style="font-size:12.5px;">Deutsche Bank: "12% FCF yield provides attractive valuation floor at current levels."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" data-tab="bs">
+    <div class="grid-2">
+      <div class="card">
+        <h3>Net Debt &amp; Leverage</h3>
+        <div class="chart-wrap"><canvas id="ndChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Capital Structure (FY25, €M)</h3>
+        <table class="data-table" style="margin-top:6px;">
+          <tbody>
+            <tr><td>Cash &amp; equivalents</td><td class="num">238.6</td></tr>
+            <tr><td>Short-term debt</td><td class="num">412.1</td></tr>
+            <tr><td>Long-term debt (incl. €500M 3.625% 2030 notes)</td><td class="num">1,250.4</td></tr>
+            <tr><td>Lease liabilities (IFRS-16)</td><td class="num">104.3</td></tr>
+            <tr><td>Pension provisions</td><td class="num">19.5</td></tr>
+            <tr style="border-top:2px solid var(--imcd);"><td><strong>Net Debt (incl. leases)</strong></td><td class="num"><strong style="color:var(--imcd-soft);">1,551.6</strong></td></tr>
+            <tr><td>Net Debt / EBITDA (loan basis)</td><td class="num">2.7x</td></tr>
+            <tr><td>Adjusted Net Debt / EBITDA</td><td class="num">2.8x</td></tr>
+            <tr><td>Covenant ceiling</td><td class="num" style="color:var(--green);">4.25x</td></tr>
+            <tr><td>Internal target ceiling</td><td class="num" style="color:var(--green);">3.0x</td></tr>
+            <tr><td>Credit ratings (Moody's / Fitch)</td><td class="num">Baa3 / BBB-</td></tr>
+            <tr><td>Revolving credit facility (Jan 2026)</td><td class="num">€700M</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" data-tab="organic">
+    <div class="card">
+      <h3>Gross Profit Growth: Organic vs M&amp;A vs FX</h3>
+      <div class="chart-wrap tall"><canvas id="omaChart"></canvas></div>
+      <p class="muted" style="font-size:13px;margin-top:14px;">
+        The decomposition that explains everything. <strong style="color:var(--imcd-soft);">Organic GP
+        growth has averaged ~8%/year</strong> in normal markets — comfortably above the 4–5% market growth
+        rate. The 2023-25 dip is destocking; 2026E+ assumes return to mid-single-digit organic growth on
+        inflation tailwind. M&amp;A consistently adds 4-9pp of growth annually.
+      </p>
+    </div>
+  </div>
+
+  <!-- Detailed financial table -->
+  <div class="card" style="margin-top:30px;">
+    <h3>Summary Financials (€M, GS Model)</h3>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>€M</th><th class="num">2021</th><th class="num">2022</th><th class="num">2023</th><th class="num">2024</th><th class="num">2025</th><th class="num">2026E</th><th class="num">2027E</th><th class="num">2028E</th><th class="num">2030E</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Revenue</td><td class="num">3,435</td><td class="num">4,601</td><td class="num">4,443</td><td class="num">4,728</td><td class="num">4,779</td><td class="num">5,084</td><td class="num">5,250</td><td class="num">5,479</td><td class="num">5,969</td></tr>
+        <tr><td>Gross Profit</td><td class="num">836</td><td class="num">1,147</td><td class="num">1,123</td><td class="num">1,202</td><td class="num">1,194</td><td class="num">1,238</td><td class="num">1,292</td><td class="num">1,347</td><td class="num">1,464</td></tr>
+        <tr><td>Gross Margin %</td><td class="num">24.4%</td><td class="num">24.9%</td><td class="num">25.3%</td><td class="num">25.4%</td><td class="num">25.0%</td><td class="num">24.3%</td><td class="num">24.6%</td><td class="num">24.6%</td><td class="num">24.5%</td></tr>
+        <tr><td>Operating EBITA</td><td class="num">374</td><td class="num">554</td><td class="num">515</td><td class="num">531</td><td class="num">498</td><td class="num">509</td><td class="num">532</td><td class="num">558</td><td class="num">616</td></tr>
+        <tr><td>EBITA Margin %</td><td class="num">10.9%</td><td class="num">12.0%</td><td class="num">11.6%</td><td class="num">11.2%</td><td class="num">10.4%</td><td class="num">10.0%</td><td class="num">10.1%</td><td class="num">10.2%</td><td class="num">10.3%</td></tr>
+        <tr><td>Conversion Margin %</td><td class="num">44.7%</td><td class="num">48.3%</td><td class="num">45.8%</td><td class="num">44.2%</td><td class="num">41.7%</td><td class="num">41.1%</td><td class="num">41.1%</td><td class="num">41.4%</td><td class="num">42.1%</td></tr>
+        <tr><td>Free Cash Flow</td><td class="num">177</td><td class="num">278</td><td class="num">383</td><td class="num">253</td><td class="num">302</td><td class="num">292</td><td class="num">317</td><td class="num">323</td><td class="num">359</td></tr>
+        <tr><td>EPS (Underlying, €)</td><td class="num">4.69</td><td class="num">6.99</td><td class="num">6.49</td><td class="num">6.40</td><td class="num">4.92</td><td class="num">5.74</td><td class="num">6.03</td><td class="num">6.36</td><td class="num">7.10</td></tr>
+        <tr><td>DPS (€)</td><td class="num">1.62</td><td class="num">2.37</td><td class="num">2.24</td><td class="num">2.15</td><td class="num">1.81</td><td class="num">2.01</td><td class="num">2.11</td><td class="num">2.23</td><td class="num">2.49</td></tr>
+        <tr><td>Net Debt / EBITDA</td><td class="num">2.43</td><td class="num">1.82</td><td class="num">2.43</td><td class="num">2.32</td><td class="num">2.95</td><td class="num">2.73</td><td class="num">2.40</td><td class="num">2.08</td><td class="num">1.47</td></tr>
+        <tr><td>ROIC</td><td class="num">25%</td><td class="num">31%</td><td class="num">28%</td><td class="num">25%</td><td class="num">23%</td><td class="num">25%</td><td class="num">25%</td><td class="num">26%</td><td class="num">30%</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="muted" style="font-size:11px; margin-top:8px;">Sources: IMCD Annual Report 2025; Goldman Sachs IMCD Model (Mar-2026); Jefferies Apr-14-2026.</div>
+  </div>
+
+</section>
+
+<!-- =============== MOAT / COMPETITION =============== -->
+<section id="moat">
+  <div class="section-tag">Section 7 · Moat &amp; Competition</div>
+  <h2>The 4 sources of IMCD's economic moat</h2>
+  <p class="lead">
+    A distributor's job sounds commoditizable — buy stuff, ship stuff, mark up. So why does IMCD
+    earn 10% ROIC vs Brenntag's 4%? Four reasons compound:
+  </p>
+
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card-strong">
+      <h3>1. Switching costs run both ways</h3>
+      <p style="font-size:13.5px;color:var(--txt-2);">
+        Suppliers can't easily replace IMCD: they'd need to rebuild the local sales infrastructure,
+        regulatory paperwork, and 71,000 SME relationships. Customers can't easily replace IMCD either:
+        IMCD chemists know their formulations, sit on stability data, and hold local stock.
+        <strong>3-5 year exclusive contracts</strong> codify this.
+      </p>
+    </div>
+    <div class="card-strong">
+      <h3>2. Scale-driven complexity advantage</h3>
+      <p style="font-size:13.5px;color:var(--txt-2);">
+        Selling 52,000 SKUs to 71,000 customers across 60 countries is an information-management
+        problem. IMCD's <strong>single global ERP/CRM</strong> + 86 connected labs + AI sales tools
+        let it cross-sell at low marginal cost. Smaller regional distributors can't replicate the
+        IT spend; bigger generalist distributors can't replicate the technical depth.
+      </p>
+    </div>
+    <div class="card-strong">
+      <h3>3. M&amp;A flywheel</h3>
+      <p style="font-size:13.5px;color:var(--txt-2);">
+        IMCD pays 8.2x EBITDA average for targets and re-rates them to its own group profile. The
+        Velox (Germany) acquisition: <strong>3.5% EBIT margin →
+        IMCD-level margins → 3x earnings</strong>. This isn't multiple arbitrage; it's distribution
+        rationalization. As long as the market stays fragmented (top 10 = 13%), the runway is huge.
+      </p>
+    </div>
+    <div class="card-strong">
+      <h3>4. Pricing discipline (margin protection)</h3>
+      <p style="font-size:13.5px;color:var(--txt-2);">
+        A former regional director quote: IMCD <em>"will routinely let price-sensitive clients go
+        rather than cut its 20-30% gross margin to 12% to match Chinese alternatives."</em>
+        Discipline beats growth at any cost — but it caps near-term volume in semi-specialties.
+      </p>
+    </div>
+  </div>
+
+  <!-- Peer table -->
+  <div class="card" style="margin-top:30px;">
+    <h3>Peer comparison — IMCD vs Azelis vs Brenntag vs Univar</h3>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th class="num">IMCD</th>
+          <th class="num">Azelis</th>
+          <th class="num">Brenntag</th>
+          <th class="num">Univar</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Business model</td><td>Asset-light pure-play</td><td>Asset-light pure-play</td><td>Asset-heavy full-line</td><td>Asset-heavy full-line</td></tr>
+        <tr><td>Market cap</td><td class="num">$6.8B</td><td class="num">$3.2B</td><td class="num">$10.2B</td><td class="num">Private (PE-owned)</td></tr>
+        <tr><td>FY25 Revenue</td><td class="num">$5.4B</td><td class="num">$4.7B</td><td class="num">$17.1B</td><td class="num">~$8.9B</td></tr>
+        <tr><td>Gross Margin</td><td class="num" style="color:var(--green);">25.0%</td><td class="num">23.4%</td><td class="num">25.3%</td><td class="num">~21%</td></tr>
+        <tr><td>EBITDA Margin</td><td class="num" style="color:var(--green);">10.8%</td><td class="num">10.7%</td><td class="num">8.0%</td><td class="num">~8%</td></tr>
+        <tr><td>ROIC</td><td class="num" style="color:var(--green);">7.2% (10.4% adj)</td><td class="num">4.4%</td><td class="num">4.4%</td><td class="num">N/A</td></tr>
+        <tr><td>Net Debt / EBITDA</td><td class="num">2.8x</td><td class="num">3.3x</td><td class="num">~2.0x</td><td class="num" style="color:var(--red);">5.5x-6.5x</td></tr>
+        <tr><td>FY26E EV/EBITA</td><td class="num">12.5x</td><td class="num" style="color:var(--green);">8.9x</td><td class="num">9.0x</td><td class="num">N/A</td></tr>
+        <tr><td>Valuation context</td><td class="num">24% disc to history</td><td class="num">38% disc to history</td><td class="num" colspan="2">Trough multiple</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:10px;">Sources: AlphaSense Equity Screener; Jefferies Apr-2026; Fitch ratings; Univar private since Apollo take-private 2023.</div>
+  </div>
+
+  <div class="grid-2" style="margin-top:24px;">
+    <div class="card">
+      <h3>Where IMCD wins</h3>
+      <ul class="bullets">
+        <li><strong>2.5x ROIC of asset-heavy peers</strong> — capital discipline.</li>
+        <li><strong>Highest gross margin among major peers</strong> — pure specialty mix.</li>
+        <li><strong>Lowest leverage of pure-plays</strong> (2.8x vs Azelis 3.3x) — M&amp;A flexibility.</li>
+        <li><strong>Best digital infrastructure</strong> — single global ERP, AI tools live.</li>
+        <li><strong>Disciplined acquisition ethos</strong> ("hunter mentality") vs Azelis "opportunistic" deals.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Where IMCD lags</h3>
+      <ul class="bullets">
+        <li><strong>Latin America under-indexed</strong> vs peers — only 10% of revenue.</li>
+        <li><strong>Limited quarterly disclosure</strong> — analysts complain about visibility.</li>
+        <li><strong>Brenntag wins in volatility</strong> — owns physical assets to react faster.</li>
+        <li><strong>Scale = customer focus risk</strong> — DB warns large salesforce dilutes principal attention.</li>
+        <li><strong>Premium valuation</strong> — 32% premium vs Azelis on EV/EBITA limits relative upside.</li>
+      </ul>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== M&A =============== -->
+<section id="ma">
+  <div class="section-tag">Section 8 · M&amp;A Track Record</div>
+  <h2>The consolidation flywheel — 100+ deals, €2.2B deployed since IPO</h2>
+  <p class="lead">
+    M&amp;A is not optional for IMCD; it's the <em class="em-imcd">core engine</em>.
+    The market is so fragmented that ~50% of historical revenue growth has been inorganic.
+    IMCD has explicit financial criteria (must be EPS-accretive day 1, ~8x EBITDA average entry multiple)
+    and operational integration playbook (cut into single ERP within months; preserve asset-light identity).
+  </p>
+
+  <div class="grid-2" style="margin-top:32px;">
+    <div class="card-strong">
+      <h3>2025 acquisitions — 7 deals, €437M deployed, +€320M revenue</h3>
+      <table class="data-table" style="margin-top:10px;">
+        <thead><tr><th>Target</th><th>Region</th><th>End-markets</th><th class="num">FY24 Rev (€M)</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tillmanns S.p.A.</strong></td><td>Italy</td><td>Coatings, Food, Water</td><td class="num">143</td></tr>
+          <tr><td><strong>Ferrer Alimentación</strong></td><td>Spain</td><td>Food &amp; Beverage</td><td class="num">112</td></tr>
+          <tr><td><strong>Dong Yang FT</strong></td><td>South Korea</td><td>Cosmetic ingredients</td><td class="num">34</td></tr>
+          <tr><td><strong>Daoqin Biological</strong></td><td>China</td><td>Food &amp; Nutraceuticals</td><td class="num">21</td></tr>
+          <tr><td><strong>TECOM Ingredients</strong></td><td>Spain</td><td>Food Additives</td><td class="num">18</td></tr>
+          <tr><td><strong>Trichem Healthcare</strong></td><td>India / Middle East</td><td>Pharma APIs</td><td class="num">18</td></tr>
+          <tr><td><strong>YCAM Corporation</strong></td><td>South Korea</td><td>Personal Care &amp; Pharma</td><td class="num">17</td></tr>
+          <tr><td><strong>Apus Química</strong></td><td>Chile</td><td>Advanced Materials</td><td class="num">15</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:14px;font-size:13px;color:var(--txt-2);">
+        <strong style="color:var(--imcd-soft);">Tillmanns</strong> = largest deal since Signet (India, 2020).
+        Adds Milan R&amp;D lab + South Europe coatings depth.<br>
+        <strong style="color:var(--imcd-soft);">Willows Ingredients</strong> (Feb 2026) = €26M food/sports/animal nutrition in UK &amp; Ireland.
+      </div>
+    </div>
+    <div class="card-strong">
+      <h3>The integration playbook</h3>
+      <ul class="bullets">
+        <li><strong>Day 1:</strong> Acquired company onto IMCD's single global JD Edwards ERP.</li>
+        <li><strong>Month 1-3:</strong> Cross-sell IMCD's existing global principals into target's local accounts ("Pillar B growth").</li>
+        <li><strong>Month 3-6:</strong> Carve out / divest any inherited physical assets — preserve asset-light identity.</li>
+        <li><strong>Year 1:</strong> Re-rate target margin profile to group standard. <em>Velox in Germany: 3.5% EBIT margin → tripled earnings.</em></li>
+        <li><strong>"Hunter mentality."</strong> Disciplined: IMCD walks away from deals with supplier conflicts or integration red flags.</li>
+        <li><strong>Strict financial gate:</strong> EPS-accretive immediately; ~8.2x EBITDA average entry multiple.</li>
+      </ul>
+      <div style="margin-top:14px; padding:12px; background:rgba(232,93,39,0.08); border-radius:8px; border:1px solid rgba(232,93,39,0.3);">
+        <div style="font-size:12px; color:var(--imcd-soft); font-weight:600;">⚠ Risk flag (former IMCD GM):</div>
+        <div style="font-size:13px; color:var(--txt-2); margin-top:4px;">
+          "Acquisitions in APAC and LatAm frequently struggle in year-1 — personnel often leave to start
+          competing distributors within months." Integration is not free.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Capital allocation chart -->
+  <div class="card" style="margin-top:30px;">
+    <h3>Capital allocation: €2.2B M&amp;A vs €1.0B dividends since IPO</h3>
+    <div class="chart-wrap"><canvas id="capAllocChart"></canvas></div>
+    <p class="muted" style="font-size:13px;margin-top:14px;">
+      IMCD targets <strong>25-35% dividend payout</strong> of adjusted net income. FY25 DPS of €1.81 sits at
+      the absolute top of policy (35%). <strong style="color:var(--accent);">Strategic pivot watch:</strong>
+      with M&amp;A timelines lengthening and shares de-rated 40% from peak, management is "actively
+      considering share buybacks" (Jefferies, Nov 2025) — a structural change in capital allocation.
+    </p>
+  </div>
+
+</section>
+
+<!-- =============== VALUATION =============== -->
+<section id="valuation">
+  <div class="section-tag">Section 9 · Valuation</div>
+  <h2>What is IMCD worth? — DCF, multiples, and the 3 scenarios</h2>
+  <p class="lead">
+    IMCD trades at <em class="em-imcd">12.5x FY26E EV/EBITA</em>, a 24% discount to its 5-year historical
+    average and a 32% premium to Azelis. The bull/bear span is unusually wide: Jefferies' bull case is €130
+    (+43%); their bear case is €60 (-34%); they (and most brokers) sit on €100-122 base case.
+  </p>
+
+  <!-- Broker target table -->
+  <div class="card-strong" style="margin-top:30px;">
+    <h3>Broker price targets (current snapshot)</h3>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>Broker</th><th>Rating</th><th class="num">PT (€)</th><th class="num">Implied Upside</th><th>Methodology</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Jefferies</strong> (Apr-2026)</td><td><span class="pill green">BUY</span></td><td class="num"><strong>108</strong></td><td class="num">+18%</td><td>DCF (8.0% WACC, 1.0% terminal) + €16.6 M&amp;A premium</td></tr>
+        <tr><td><strong>Goldman Sachs</strong> (Mar-2026)</td><td><span class="pill green">BUY</span></td><td class="num"><strong>114</strong></td><td class="num">+15%</td><td>14x FY27E EBITDA + uses-of-cash adjustment</td></tr>
+        <tr><td><strong>Kepler Cheuvreux</strong></td><td><span class="pill green">BUY</span></td><td class="num"><strong>122</strong></td><td class="num">+34%</td><td>DCF + peer multiples</td></tr>
+        <tr><td><strong>ING</strong></td><td><span class="pill green">BUY</span></td><td class="num"><strong>116.50</strong></td><td class="num">+28%</td><td>Asset-light premium framework</td></tr>
+        <tr><td><strong>KBC Securities</strong></td><td><span class="pill green">ACCUMULATE</span></td><td class="num"><strong>122</strong></td><td class="num">+34%</td><td>FCF conversion premium</td></tr>
+        <tr><td><strong>Deutsche Bank</strong></td><td><span class="pill green">BUY</span></td><td class="num"><strong>108</strong></td><td class="num">+18%</td><td>DCF (8.6% WACC, 3.0% terminal)</td></tr>
+        <tr><td><strong>Degroof Petercam</strong></td><td><span class="pill gray">HOLD</span></td><td class="num"><strong>100</strong></td><td class="num">+10%</td><td>Trough cycle, fully priced</td></tr>
+        <tr><td><strong>HSBC</strong></td><td><span class="pill gray">HOLD</span></td><td class="num"><strong>95</strong></td><td class="num">+4%</td><td>12.5x 2026E target multiple</td></tr>
+        <tr><td><strong>JPMorgan</strong></td><td><span class="pill gray">NEUTRAL</span></td><td class="num"><strong>n/a</strong></td><td class="num">—</td><td>Negative catalyst watch</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <span class="muted" style="font-size:13px;">Consensus: <strong style="color:var(--imcd-soft);">€110</strong> · Bias: <strong style="color:var(--green);">BUY</strong> · Range: €60 (bear) — €130 (bull)</span>
+    </div>
+  </div>
+
+  <!-- DCF & scenarios -->
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card">
+      <h3>Jefferies DCF Build (€/share)</h3>
+      <table class="data-table">
+        <tbody>
+          <tr><td>PV of projected FCF (10y)</td><td class="num">3,121</td></tr>
+          <tr><td>+ Continuing value (1.0% growth)</td><td class="num">3,262</td></tr>
+          <tr><td>= Enterprise Value</td><td class="num"><strong>6,383</strong></td></tr>
+          <tr><td>− Net Debt FY25</td><td class="num">(1,447)</td></tr>
+          <tr><td>= Equity Value</td><td class="num">4,936</td></tr>
+          <tr><td>÷ Shares (m)</td><td class="num">59.1</td></tr>
+          <tr style="border-top:2px solid var(--imcd);"><td><strong>Base Equity Value /share</strong></td><td class="num"><strong>€83.6</strong></td></tr>
+          <tr><td>+ M&amp;A Premium</td><td class="num">€16.6</td></tr>
+          <tr style="border-top:1px solid var(--imcd);"><td><strong>Price Target</strong></td><td class="num" style="color:var(--imcd-soft);"><strong>€108</strong></td></tr>
+          <tr><td>WACC</td><td class="num">8.0%</td></tr>
+          <tr><td>Continuing growth</td><td class="num">1.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Risk-Reward Scenarios (Jefferies)</h3>
+      <div class="chart-wrap" style="height:300px;"><canvas id="scenChart"></canvas></div>
+      <div style="margin-top:12px; font-size:13px;">
+        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line-soft);">
+          <span><span style="color:var(--green); font-weight:700;">Bull €130</span> (+43%)</span>
+          <span class="muted">Mid-high single-digit organic recovery, margin expansion, M&amp;A premium</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line-soft);">
+          <span><span style="color:var(--imcd-soft); font-weight:700;">Base €108</span> (+18%)</span>
+          <span class="muted">3.2% organic FY26, accelerating to 4.5%; gradual margin recovery to 11.6%</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:8px 0;">
+          <span><span style="color:var(--red); font-weight:700;">Bear €60</span> (-34%)</span>
+          <span class="muted">Stable revenue, margin to pre-COVID 8.5%, M&amp;A premium removed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multiple history -->
+  <div class="card" style="margin-top:30px;">
+    <h3>Historical EV/EBITA — has IMCD de-rated too far?</h3>
+    <div class="chart-wrap"><canvas id="multChart"></canvas></div>
+    <p class="muted" style="font-size:13px;margin-top:14px;">
+      <strong style="color:var(--imcd-soft);">The setup:</strong> IMCD's 5-year median EV/EBITA is ~16.5x.
+      Today's 12.5x represents a one-and-a-half standard-deviation discount. Bulls argue this fully prices
+      in the cyclical trough; bears argue the structural threat from Chinese substitution justifies a
+      permanent re-rating.
+    </p>
+  </div>
+
+</section>
+
+<!-- =============== BULL VS BEAR =============== -->
+<section id="bullbear">
+  <div class="section-tag">Section 10 · Bull vs Bear</div>
+  <h2>The argument map</h2>
+  <p class="lead">
+    Three structural debates dominate the current discussion: (1) Chinese competition,
+    (2) organic growth slowdown, (3) capital allocation pivot to buybacks.
+  </p>
+
+  <div class="bb-grid" style="margin-top:32px;">
+    <div class="bull">
+      <h3>🐂 BULL CASE</h3>
+      <ul class="bb-list">
+        <li>
+          <strong>Asset-light defensive in downturns</strong>
+          <span>~91% FCF conversion in FY25 despite weakest organic growth since IPO. Operating leverage works in reverse: when growth returns, drops to bottom-line will be massive.</span>
+        </li>
+        <li>
+          <strong>Inflation tailwind starting</strong>
+          <span>Jefferies: "avalanche of price increases" expected post-1Q26. Distributors historically <em>benefit</em> from supply-chain shocks because they pass through prices on % markup.</span>
+        </li>
+        <li>
+          <strong>Chinese competition easing in semi-specialties</strong>
+          <span>Volumes redirected back to China (domestic demand). Local sourcing importance reinforced. IMCD's ex-OD: only 15% of portfolio is in the "gray zone" vulnerable to substitution.</span>
+        </li>
+        <li>
+          <strong>Outsourcing structural tailwind</strong>
+          <span>Only 17-20% of specialty distribution outsourced today. Kemira publicly said it will outsource more in 2026. Producers like BASF facing competitive squeeze → forced to restructure.</span>
+        </li>
+        <li>
+          <strong>M&amp;A consolidation runway</strong>
+          <span>Top 10 = only 13% of market. €700M revolving credit + €238M cash + 91% FCF conversion = ample firepower. 7 deals/year run-rate sustainable.</span>
+        </li>
+        <li>
+          <strong>Buyback optionality</strong>
+          <span>40% de-rating from peak + slow M&amp;A pipeline → management actively considering buybacks. Trading well below intrinsic value — would be highly accretive.</span>
+        </li>
+        <li>
+          <strong>Valuation discount</strong>
+          <span>12.5x FY26E EV/EBITA = 24% discount to historical median, 1.5σ below 5-year. 8% FCF yield + 2% dividend = ~10% cash return floor.</span>
+        </li>
+        <li>
+          <strong>Track record speaks</strong>
+          <span>19% TSR/year and 19% EPS growth/year since IPO 2014. Velox-style margin re-rating still works (3.5% EBIT → group level).</span>
+        </li>
+      </ul>
+    </div>
+    <div class="bear">
+      <h3>🐻 BEAR CASE</h3>
+      <ul class="bb-list">
+        <li>
+          <strong>Organic growth has stalled — possibly structurally</strong>
+          <span>Q4-25 organic GP decline likely the worst since IPO 2014 (ING). Two consecutive years of ~0% organic growth despite recovery narrative. "No clear visibility" (Degroof).</span>
+        </li>
+        <li>
+          <strong>Chinese specialty up-move is real</strong>
+          <span>BASF director: Chinese principals "moving up the value chain into specialty chemicals, leveraging Western distributors for market entry." Structural deflation risk on both commodities AND specialties.</span>
+        </li>
+        <li>
+          <strong>Margin compression continuing</strong>
+          <span>EBITA margin: 12.0% FY22 → 10.4% FY25. Conversion margin: 48% → 41.7%. Q4-25 EBITA margin plunged to 9.4%. Inflation pushing SG&amp;A faster than gross profit.</span>
+        </li>
+        <li>
+          <strong>Leverage rising at wrong time</strong>
+          <span>Net debt €1,552M, 2.8x EBITDA (vs 2.2x year ago). Internal ceiling 3.0x = only €100M-€200M M&amp;A capacity left without equity raise.</span>
+        </li>
+        <li>
+          <strong>M&amp;A integration risks</strong>
+          <span>Univar SD: APAC/LatAm acquisitions "frequently struggle in year 1 — personnel leave to start competing distributors." Jefferies: "increasing competition for M&amp;A targets makes future deals less accretive."</span>
+        </li>
+        <li>
+          <strong>Management instability</strong>
+          <span>CEO transition April 2025 (Diele-Braun → Jordan), CFO transition Jan 2027, new CCO 2026, coatings division leadership churn. Foundational figures retiring.</span>
+        </li>
+        <li>
+          <strong>Disintermediation creep</strong>
+          <span>Tier-2/3 customers growing larger want to buy direct. Suppliers reclaim large accounts during cycles. Ex-Director at IMCD calls this "structural risk across industry."</span>
+        </li>
+        <li>
+          <strong>Multiple may not re-rate back</strong>
+          <span>HSBC: 12.5x is the new normal. Premium to Azelis (32%) and full-line peers (~30%) limits relative upside even in recovery.</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Three big debates -->
+  <div class="card-strong" style="margin-top:30px;">
+    <h3>The 3 dominant debates</h3>
+    <div class="grid-3" style="margin-top:14px;">
+      <div>
+        <h4 style="color:var(--imcd-soft);">Debate 1 — Chinese threat</h4>
+        <p class="muted" style="font-size:13px;">
+          <strong>Bear:</strong> structural deflation as China moves upstack.<br>
+          <strong>Bull:</strong> only ~15% of IMCD portfolio vulnerable; technical formulation is hard to commoditize; Chinese suppliers actually <em>need</em> Western distributors.
+        </p>
+      </div>
+      <div>
+        <h4 style="color:var(--imcd-soft);">Debate 2 — Cyclical or structural?</h4>
+        <p class="muted" style="font-size:13px;">
+          <strong>Bear:</strong> 0% organic for 2+ years says the model has broken.<br>
+          <strong>Bull:</strong> standard post-COVID over-earnings normalization; structural outsourcing &amp; resilient pharma/food drive volume recovery to 6%/yr by 2027 (DB).
+        </p>
+      </div>
+      <div>
+        <h4 style="color:var(--imcd-soft);">Debate 3 — Buybacks or M&amp;A?</h4>
+        <p class="muted" style="font-size:13px;">
+          <strong>Bull on buyback:</strong> 40% de-rating + slow M&amp;A pipeline = NPV-positive at any reasonable bull math.<br>
+          <strong>Bear on M&amp;A:</strong> debt-fund expensive deals into a slowdown is value-destructive.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== RISKS =============== -->
+<section id="risks">
+  <div class="section-tag">Section 11 · Key Risks</div>
+  <h2>What kills the thesis — ranked</h2>
+
+  <div class="grid-2" style="margin-top:24px;">
+    <div class="card">
+      <h3 style="color:var(--red);">🔴 Tier 1 — High probability, high impact</h3>
+      <ul class="bullets">
+        <li><strong>Prolonged organic stagnation (probability HIGH)</strong> — A 3rd year of ~0% organic growth would force consensus margin cuts and break the "high-quality compounder" narrative.</li>
+        <li><strong>Chinese specialty up-stack (probability MEDIUM, impact HIGH)</strong> — If Chinese players capture &gt;15% of specialty mix in EM markets, IMCD's gross margin profile is structurally impaired.</li>
+        <li><strong>EM tariff/geopolitical disruption (probability HIGH)</strong> — US-India pharma already showing weakness. Middle East conflict adding fuel/freight inflation through SG&amp;A.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--accent);">🟠 Tier 2 — Medium probability or impact</h3>
+      <ul class="bullets">
+        <li><strong>M&amp;A pipeline drying</strong> — Vendor expectations not adjusting to current rates. Buyback pivot signals reduced confidence in deal flow.</li>
+        <li><strong>Integration failures</strong> — APAC/LatAm targets historically struggle Y1. Personnel leakage = thesis dilution.</li>
+        <li><strong>Leverage approaching ceiling</strong> — 2.8x vs 3.0x internal target. Limits flexibility if a transformational deal emerges.</li>
+        <li><strong>Disintermediation by Tier-2/3 customers growing</strong> — As SMEs scale, they want direct supplier access.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:22px;">
+    <div class="card">
+      <h3 style="color:var(--blue);">🟡 Tier 3 — Lower-probability tail risks</h3>
+      <ul class="bullets">
+        <li><strong>FX translation</strong> — Reporting currency EUR; significant USD &amp; emerging-market revenue.</li>
+        <li><strong>Customer insolvency in downturn</strong> — 71,000 SME customers; bad debts could cluster.</li>
+        <li><strong>3PL freight cost spikes</strong> — Outsourced logistics is a variable cost — but inflation passes through with 3-6mo lag.</li>
+        <li><strong>Sustainability/ESG penalties</strong> — Scope 1+2 GHG -60% by 2034 target. Sourcing scrutiny rising.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--purple);">🟣 Tier 4 — Governance &amp; technical</h3>
+      <ul class="bullets">
+        <li><strong>Management transition risk</strong> — New CEO (Apr-25), new CFO (Jan-27), new CCO (Apr-26 AGM), churn in coatings division.</li>
+        <li><strong>Limited quarterly disclosure</strong> — Brokers complain about visibility. Order book is the only forward-looking KPI.</li>
+        <li><strong>Concentrated ownership signals</strong> — BlackRock 10.1%, Baillie Gifford 10.0% — but otherwise 96% free float, no anchor.</li>
+        <li><strong>IT/ERP execution</strong> — Single-system advantage flips to single-point-of-failure if upgrades stumble (2026 IT spend will weigh on margins).</li>
+      </ul>
+    </div>
+  </div>
+
+</section>
+
+<!-- =============== CATALYSTS =============== -->
+<section id="catalysts">
+  <div class="section-tag">Section 12 · Catalysts &amp; Calendar</div>
+  <h2>What to watch — 2026 timeline</h2>
+
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card-strong">
+      <h3>2026 Earnings &amp; Events Calendar</h3>
+      <div class="timeline" style="margin-top:14px;">
+        <div class="tl-item">
+          <div class="tl-date">April 30, 2026</div>
+          <div class="tl-title">1Q26 Trading Update</div>
+          <div class="tl-body">First major print under CEO Marcus Jordan. Jefferies expects EBITA -11% to €126.8M (vs cons €121.9M). Watch: organic growth %, conversion margin, China commentary.</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">April 30, 2026</div>
+          <div class="tl-title">Annual General Meeting</div>
+          <div class="tl-body">Andreas Igerl confirmed as new CCO. Capital allocation policy update — buyback announcement possible.</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">July 29, 2026</div>
+          <div class="tl-title">1H26 Results</div>
+          <div class="tl-body">First full half under new management. Inflation pass-through confirmation. M&amp;A pipeline update.</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">November 5, 2026</div>
+          <div class="tl-title">3Q26 Trading Update</div>
+          <div class="tl-body">Holiday-season order indicators. Chinese substitution trends. 4Q outlook.</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">January 2027</div>
+          <div class="tl-title">CFO Transition</div>
+          <div class="tl-body">Floris Lagerwerf takes over from Hans Kooijmans. Smooth handoff already telegraphed.</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date">February 2027</div>
+          <div class="tl-title">FY26 Results &amp; FY27 Guidance</div>
+          <div class="tl-body">First "clean" annual print under Jordan/Lagerwerf — sets thesis for 2027+.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-strong">
+      <h3>What would change the bull/bear framing?</h3>
+      <h4 style="margin-top:14px;color:var(--green);">📈 Positive catalysts</h4>
+      <ul class="bullets">
+        <li>Organic gross profit growth ≥3% in any quarter — confirms cyclical recovery thesis</li>
+        <li>Buyback announcement at AGM</li>
+        <li>Major principal contract win (e.g., from Brenntag/Univar)</li>
+        <li>EBITA margin re-acceleration above 11.0%</li>
+        <li>Leverage drop below 2.5x (creates M&amp;A flexibility)</li>
+        <li>Tariff resolution / Middle East de-escalation</li>
+      </ul>
+      <h4 style="margin-top:18px;color:var(--red);">📉 Negative catalysts</h4>
+      <ul class="bullets">
+        <li>Q1-26 organic growth negative (3rd consecutive miss)</li>
+        <li>Major principal lost or restructured</li>
+        <li>Q1 EBITA margin below 10%</li>
+        <li>Leverage breaches 3.0x</li>
+        <li>M&amp;A pause announcement (capital deployment freeze)</li>
+        <li>Chinese substitution evidence in EU customer base</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- =============== GLOSSARY =============== -->
+<section id="glossary">
+  <div class="section-tag">Section 13 · Glossary &amp; First-Principles</div>
+  <h2>Specialty chemicals lingo — translated</h2>
+  <p class="lead">Here's the terminology that comes up constantly in IMCD reports. Memorize these.</p>
+
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card">
+      <h4>Principal Supplier</h4>
+      <p class="muted" style="font-size:13.5px;">The Tier-1 chemical maker (BASF, Croda) for whom IMCD distributes. The relationship is contractual (3-5y) and often exclusive by region/product.</p>
+    </div>
+    <div class="card">
+      <h4>3PL (Third-Party Logistics)</h4>
+      <p class="muted" style="font-size:13.5px;">Outsourced warehouse + transport partner. IMCD uses 1,000+ globally — they handle bulk-breaking, mixing, packaging, shipping.</p>
+    </div>
+    <div class="card">
+      <h4>Conversion Margin</h4>
+      <p class="muted" style="font-size:13.5px;">EBITA divided by Gross Profit. The cleanest measure of operational efficiency for a distributor — strips out price/mix volatility.</p>
+    </div>
+    <div class="card">
+      <h4>Gross Margin</h4>
+      <p class="muted" style="font-size:13.5px;">Revenue minus COGS (cost of products bought from principals), as % of revenue. ~25% for IMCD = high specialty mix.</p>
+    </div>
+    <div class="card">
+      <h4>Organic Growth</h4>
+      <p class="muted" style="font-size:13.5px;">Revenue growth excluding acquisitions and FX. Pure same-store metric — best gauge of underlying demand health.</p>
+    </div>
+    <div class="card">
+      <h4>Specialty vs Commodity Chemicals</h4>
+      <p class="muted" style="font-size:13.5px;">Specialty = functional, low-volume, high-margin (an emulsifier in sunscreen). Commodity = volume-driven, low-margin (sulfuric acid).</p>
+    </div>
+    <div class="card">
+      <h4>Application Lab</h4>
+      <p class="muted" style="font-size:13.5px;">Technical facility (IMCD has 86) where chemists co-formulate finished products for customers — embeds switching costs.</p>
+    </div>
+    <div class="card">
+      <h4>EBITA vs EBITDA</h4>
+      <p class="muted" style="font-size:13.5px;">EBITA = Earnings Before Interest, Tax, &amp; <em>Amortization of intangibles</em>. Amortization of acquired intangibles is non-cash and high for serial acquirers like IMCD — EBITA is cleaner.</p>
+    </div>
+    <div class="card">
+      <h4>Bulk-Breaking</h4>
+      <p class="muted" style="font-size:13.5px;">Splitting large supplier shipments (e.g., 25-tonne tankers) into customer-sized units (e.g., 50-kg drums). Core 3PL function.</p>
+    </div>
+    <div class="card">
+      <h4>Pillar B Growth</h4>
+      <p class="muted" style="font-size:13.5px;">IMCD term: post-acquisition growth from cross-selling its existing global principals into the acquired entity's local customer base.</p>
+    </div>
+    <div class="card">
+      <h4>Outsourcing Rate</h4>
+      <p class="muted" style="font-size:13.5px;">% of total specialty chemical distribution that's done by 3rd-party distributors vs direct supplier sales. Currently 17-20% globally — secular driver of TAM growth.</p>
+    </div>
+    <div class="card">
+      <h4>M&amp;A Premium (in DCF)</h4>
+      <p class="muted" style="font-size:13.5px;">Brokers add €10-20/share to base DCF to capture the value of <em>future</em> M&amp;A — assuming IMCD continues acquiring at &lt; group multiples.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =============== TAKEAWAYS =============== -->
+<section id="takeaways">
+  <div class="section-tag">Section 14 · Synthesis</div>
+  <h2>If you remember 7 things about IMCD…</h2>
+
+  <div class="grid-2" style="margin-top:30px;">
+    <div class="card-strong">
+      <h3>The bull math in one paragraph</h3>
+      <p class="muted" style="font-size:14px;line-height:1.7;">
+        IMCD is the world's largest pure-play specialty chemicals distributor, sitting at the
+        center of a structurally fragmented €25-30B+ market. Its asset-light model (no plants,
+        no warehouses) generates 25% gross margins, 10% ROIC, and 91% FCF conversion — 2-3x what
+        asset-heavy peers achieve. The combination of (1) 17-20% outsourcing rate that's structurally
+        rising, (2) a fragmented market where the top-10 controls just 13%, and (3) a proven
+        100+ deal M&amp;A track record at 8x EBITDA entry multiples, makes IMCD a quintessential
+        consolidator-compounder. At 12.5x FY26E EV/EBITA — a 24% discount to its own history and 1.5σ
+        below trend — the cyclical trough is largely priced in. Inflation + return to growth +
+        possible buybacks = mid-teens IRR plausible from current levels.
+      </p>
+    </div>
+    <div class="card-strong">
+      <h3>The bear math in one paragraph</h3>
+      <p class="muted" style="font-size:14px;line-height:1.7;">
+        IMCD has now had two consecutive years of ~0% organic growth — possibly the longest soft
+        patch since IPO. Q4-25 organic gross profit decline was likely the worst since 2014. Chinese
+        producers are systematically moving up the value chain into specialties, threatening
+        structural deflation that has historically protected pure-play distributors. Margins are
+        compressing (EBITA margin from 12.0% FY22 to 10.4% FY25; Q4-25 plunged to 9.4%) and
+        leverage is rising (2.2x → 2.8x in 12 months). A management transition is underway at
+        CEO/CFO/CCO simultaneously. The 32% premium to Azelis and 30%+ premium to full-line peers
+        leaves limited relative upside even if conditions improve. Buyback consideration may signal
+        management's own loss of confidence in the M&amp;A pipeline. €60 bear case is uncomfortably
+        close to current price if margins return to pre-COVID levels.
+      </p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:24px;">
+    <h3>The verdict (sell-side base-case)</h3>
+    <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:12px; align-items:center; text-align:center; margin-top:14px;">
+      <div style="padding:14px 8px;background:rgba(232,93,39,0.06);border-radius:8px;border:1px solid var(--imcd);">
+        <div class="muted" style="font-size:11px;">CONSENSUS RATING</div>
+        <div style="color:var(--green);font-weight:700;font-size:18px;margin-top:4px;">BUY</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div class="muted" style="font-size:11px;">MEDIAN PT</div>
+        <div style="font-weight:700;font-size:18px;margin-top:4px;">€110</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div class="muted" style="font-size:11px;">BULL CASE</div>
+        <div style="color:var(--green);font-weight:700;font-size:18px;margin-top:4px;">€130 (+43%)</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div class="muted" style="font-size:11px;">BEAR CASE</div>
+        <div style="color:var(--red);font-weight:700;font-size:18px;margin-top:4px;">€60 (-34%)</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div class="muted" style="font-size:11px;">UPSIDE/DOWNSIDE</div>
+        <div style="font-weight:700;font-size:18px;margin-top:4px;">1.25 : 1</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div class="muted" style="font-size:11px;">FCF YIELD</div>
+        <div style="color:var(--accent);font-weight:700;font-size:18px;margin-top:4px;">~8%</div>
+      </div>
+      <div style="padding:14px 8px;background:var(--bg-2);border-radius:8px;">
+        <div class="muted" style="font-size:11px;">DIVIDEND YIELD</div>
+        <div style="color:var(--blue);font-weight:700;font-size:18px;margin-top:4px;">~2%</div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<footer>
+  <div style="max-width:900px;margin:0 auto;">
+    <div style="font-size:13px;color:var(--txt-1);margin-bottom:14px;">
+      <strong style="color:var(--imcd-soft);">Sources:</strong> IMCD Annual Report 2025 · Goldman Sachs Equity Research (IMCD Model, Mar-2026) · Jefferies Specialty Chemicals Distributors 1Q26 Preview (Apr-2026) · AlphaSense Generative Search reports (Apr-2026) · Kepler Cheuvreux · Deutsche Bank Research · ING · KBC Securities · Degroof Petercam · HSBC · JPMorgan · Auerbach Grayson · Expert calls (former IMCD/Azelis/Univar/BASF executives).
+    </div>
+    <div>
+      Built as a first-principles educational research dashboard. Not investment advice. Verify all data points against primary sources before acting.
+      <br/>© 2026 · Single-file static dashboard · Chart.js · Leaflet · TradingView.
+    </div>
+  </div>
+</footer>
+
+</main>
+
+<div class="price-banner">
+  <strong>IMCD AS</strong> · €91.18 · <span style="color:var(--imcd-soft);">Target €110</span> · FY26E P/E 15.8x · FCF Yield ~8%
+</div>
+
+<!-- =============== JAVASCRIPT =============== -->
+<script>
+//==================
+// Chart.js global theme
+//==================
+Chart.defaults.color = '#cbd2dd';
+Chart.defaults.borderColor = '#252e3c';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 12;
+
+const COL = {
+  imcd: '#E85D27',
+  imcdSoft: '#f08754',
+  imcdDeep: '#b94512',
+  accent: '#f4a85a',
+  green: '#34d399',
+  red: '#f87171',
+  blue: '#60a5fa',
+  purple: '#a78bfa',
+  teal: '#2dd4bf',
+  yellow: '#fbbf24',
+  bg2: '#161c25',
+  line: '#252e3c',
+  txt1: '#cbd2dd',
+  txt2: '#8a93a3'
+};
+
+const yrs2030 = ['2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021','2022','2023','2024','2025','2026E','2027E','2028E','2029E','2030E'];
+const yrs2025 = yrs2030.slice(0,15);
+
+//==================
+// Animated counters
+//==================
+function animateCounters(){
+  const els = document.querySelectorAll('[data-counter]');
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(!e.isIntersecting) return;
+      const el = e.target;
+      const target = parseFloat(el.dataset.counter);
+      const decimals = parseInt(el.dataset.decimals || '0');
+      const suffix = el.dataset.suffix || '';
+      const dur = 1300;
+      const start = performance.now();
+      function tick(now){
+        const t = Math.min(1, (now-start)/dur);
+        const eased = 1 - Math.pow(1-t, 3);
+        const v = target * eased;
+        el.textContent = v.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + suffix;
+        if(t<1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      obs.unobserve(el);
+    });
+  }, {threshold:0.4});
+  els.forEach(e=>obs.observe(e));
+}
+animateCounters();
+
+//==================
+// Tabs
+//==================
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    const target = tab.dataset.tab;
+    const parent = tab.parentElement;
+    parent.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    const container = parent.parentElement;
+    container.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    container.querySelector(`.tab-content[data-tab="${target}"]`).classList.add('active');
+  });
+});
+
+//==================
+// Common chart options
+//==================
+const baseOpts = {
+  maintainAspectRatio:false, responsive:true,
+  plugins:{
+    legend:{
+      labels:{color:COL.txt1, font:{size:12}, usePointStyle:true, padding:14},
+      position:'bottom'
+    },
+    tooltip:{
+      backgroundColor: COL.bg2,
+      titleColor:'#fff', bodyColor: COL.txt1,
+      borderColor:COL.line, borderWidth:1,
+      padding:10, displayColors:true, cornerRadius:7
+    }
+  },
+  scales:{
+    x:{grid:{color:'rgba(37,46,60,0.4)'}, ticks:{color:COL.txt2, font:{size:11}}},
+    y:{grid:{color:'rgba(37,46,60,0.4)'}, ticks:{color:COL.txt2, font:{size:11}}}
+  }
+};
+
+//==================
+// 1. Segments donut
+//==================
+new Chart(document.getElementById('segChart'), {
+  type:'doughnut',
+  data:{
+    labels:['Life Sciences (Pharma, Beauty, Food, Home Care)', 'Industrial (Coatings, Materials, Lubes, Solutions)'],
+    datasets:[{
+      data:[53,47],
+      backgroundColor:[COL.imcd, COL.blue],
+      borderColor:'#10141b', borderWidth:3
+    }]
+  },
+  options:{
+    ...baseOpts,
+    cutout:'62%',
+    plugins:{
+      ...baseOpts.plugins,
+      tooltip:{...baseOpts.plugins.tooltip, callbacks:{label:(ctx)=>`${ctx.label}: ${ctx.parsed}%`}}
+    }
+  }
+});
+
+//==================
+// 2. Geography donut
+//==================
+new Chart(document.getElementById('geoChart'), {
+  type:'doughnut',
+  data:{
+    labels:['EMEA','Asia-Pacific','North America','Latin America'],
+    datasets:[{
+      data:[43,26,20,10],
+      backgroundColor:[COL.imcd, COL.purple, COL.green, COL.accent],
+      borderColor:'#10141b', borderWidth:3
+    }]
+  },
+  options:{
+    ...baseOpts,
+    cutout:'62%',
+    plugins:{
+      ...baseOpts.plugins,
+      tooltip:{...baseOpts.plugins.tooltip, callbacks:{label:(ctx)=>`${ctx.label}: ${ctx.parsed}%`}}
+    }
+  }
+});
+
+//==================
+// 3. Revenue bars (with forecast styling)
+//==================
+const revenue = [195,244,331,400,1347,1714,1907,2379,2690,2775,3435,4601,4443,4728,4779,5084,5250,5479,5718,5969];
+const revenueColors = revenue.map((_,i)=> i<15 ? COL.imcd : 'rgba(232,93,39,0.45)');
+
+new Chart(document.getElementById('revChart'), {
+  type:'bar',
+  data:{
+    labels:yrs2030,
+    datasets:[{
+      label:'Group Revenue (€M)',
+      data:revenue,
+      backgroundColor:revenueColors,
+      borderColor:revenueColors,
+      borderRadius:4
+    }]
+  },
+  options:{
+    ...baseOpts,
+    plugins:{
+      ...baseOpts.plugins,
+      legend:{display:false},
+      tooltip:{...baseOpts.plugins.tooltip, callbacks:{label:(ctx)=>`€${ctx.parsed.y.toLocaleString()}M`}}
+    }
+  }
+});
+
+//==================
+// 4. Gross margin line
+//==================
+const gmIMCD = [null,null,null,null,24.7,22.3,22.5,22.5,22.3,23.3,24.4,24.9,25.3,25.4,25.0,24.3,24.6,24.6,24.5,24.5];
+const gmAzelis = [null,null,null,null,null,null,null,null,null,null,21.5,22.4,23.0,23.1,23.4,23.7,23.8,23.9,24.0,24.0];
+
+new Chart(document.getElementById('gmChart'), {
+  type:'line',
+  data:{
+    labels:yrs2030,
+    datasets:[
+      {label:'IMCD', data:gmIMCD, borderColor:COL.imcd, backgroundColor:'rgba(232,93,39,0.1)', tension:0.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:COL.imcd, fill:false},
+      {label:'Azelis', data:gmAzelis, borderColor:COL.blue, backgroundColor:'rgba(96,165,250,0.1)', tension:0.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:COL.blue, borderDash:[4,4], fill:false}
+    ]
+  },
+  options:{
+    ...baseOpts,
+    scales:{
+      x:baseOpts.scales.x,
+      y:{...baseOpts.scales.y, min:20, max:28, ticks:{...baseOpts.scales.y.ticks, callback:v=>v+'%'}}
+    }
+  }
+});
+
+//==================
+// 5. EBITA margin line
+//==================
+const ebitaIMCD = [null,null,null,null,9.5,8.6,8.5,8.5,8.4,8.8,10.9,12.0,11.6,11.2,10.4,10.0,10.1,10.2,10.3,10.3];
+const ebitaAzelis = [null,null,null,null,null,null,null,null,null,null,9.5,11.1,11.2,10.5,10.0,10.1,10.3,10.5,10.7,11.0];
+
+new Chart(document.getElementById('ebitaMarginChart'), {
+  type:'line',
+  data:{
+    labels:yrs2030,
+    datasets:[
+      {label:'IMCD', data:ebitaIMCD, borderColor:COL.imcd, backgroundColor:'rgba(232,93,39,0.13)', tension:0.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:COL.imcd, fill:true},
+      {label:'Azelis', data:ebitaAzelis, borderColor:COL.blue, backgroundColor:'rgba(96,165,250,0.05)', tension:0.4, borderWidth:2.5, pointRadius:3, pointBackgroundColor:COL.blue, borderDash:[4,4], fill:false}
+    ]
+  },
+  options:{
+    ...baseOpts,
+    scales:{
+      x:baseOpts.scales.x,
+      y:{...baseOpts.scales.y, min:6, max:14, ticks:{...baseOpts.scales.y.ticks, callback:v=>v+'%'}}
+    }
+  }
+});
+
+//==================
+// 6. Conversion margin
+//==================
+const convMargin = [null,38,37,37,38,39,38,37,37,38,44.7,48.3,45.8,44.2,41.7,41.1,41.1,41.4,41.8,42.1];
+
+new Chart(document.getElementById('convChart'), {
+  type:'line',
+  data:{
+    labels:yrs2030,
+    datasets:[{
+      label:'Conversion Margin (EBITA / Gross Profit) %',
+      data:convMargin,
+      borderColor:COL.imcd, backgroundColor:'rgba(232,93,39,0.13)',
+      tension:0.4, borderWidth:2.8, pointRadius:3.5, fill:true,
+      pointBackgroundColor:COL.imcd
+    }]
+  },
+  options:{
+    ...baseOpts,
+    plugins:{
+      ...baseOpts.plugins,
+      legend:{display:false}
+    },
+    scales:{
+      x:baseOpts.scales.x,
+      y:{...baseOpts.scales.y, min:30, max:52, ticks:{...baseOpts.scales.y.ticks, callback:v=>v+'%'}}
+    }
+  }
+});
+
+//==================
+// 7. FCF chart
+//==================
+const fcf = [null,31,4,32,76,94,101,102,156,214,178,278,383,253,302,292,317,323,341,359];
+
+new Chart(document.getElementById('fcfChart'), {
+  type:'bar',
+  data:{
+    labels:yrs2030,
+    datasets:[{
+      label:'Free Cash Flow (€M)',
+      data:fcf,
+      backgroundColor:fcf.map((_,i)=> i<15 ? COL.green : 'rgba(52,211,153,0.5)'),
+      borderRadius:4
+    }]
+  },
+  options:{
+    ...baseOpts,
+    plugins:{
+      ...baseOpts.plugins,
+      legend:{display:false},
+      tooltip:{...baseOpts.plugins.tooltip, callbacks:{label:(ctx)=>`€${ctx.parsed.y}M`}}
+    }
+  }
+});
+
+//==================
+// 8. Net debt + leverage (dual-axis)
+//==================
+const netDebt = [null,725,824,267,438,398,490,611,735,727,940,1027,1286,1282,1552,1468,1339,1214,1080,939];
+const leverage = [null,8.0,8.4,2.5,3.4,2.7,3.1,3.1,3.1,2.8,2.4,1.8,2.4,2.3,2.95,2.73,2.4,2.08,1.76,1.47];
+
+new Chart(document.getElementById('ndChart'), {
+  type:'bar',
+  data:{
+    labels:yrs2030,
+    datasets:[
+      {type:'bar', label:'Net Debt (€M)', data:netDebt, backgroundColor:'rgba(232,93,39,0.55)', yAxisID:'y', borderRadius:4},
+      {type:'line', label:'Net Debt / EBITDA (x)', data:leverage, borderColor:COL.accent, backgroundColor:COL.accent, tension:0.4, borderWidth:2.5, pointRadius:3, yAxisID:'y1'}
+    ]
+  },
+  options:{
+    ...baseOpts,
+    scales:{
+      x:baseOpts.scales.x,
+      y:{position:'left', grid:{color:'rgba(37,46,60,0.4)'}, ticks:{color:COL.txt2, callback:v=>'€'+v+'M'}},
+      y1:{position:'right', grid:{display:false}, ticks:{color:COL.accent, callback:v=>v+'x'}, min:0, max:9}
+    }
+  }
+});
+
+//==================
+// 9. Organic vs M&A growth stack
+//==================
+const yrsGr = ['2017','2018','2019','2020','2021','2022','2023','2024','2025','2026E','2027E','2028E'];
+const orgGr = [6,13,1,5,21,24,-3,1,-1,-1,4,4];
+const maGr  = [7,15,10,6,9,6,5,6,4,6,0,0];
+const fxGr  = [-1,-3,1,-3,-1,6,-1,-1,-3,-2,0,0];
+
+new Chart(document.getElementById('omaChart'), {
+  type:'bar',
+  data:{
+    labels:yrsGr,
+    datasets:[
+      {label:'Organic GP Growth %', data:orgGr, backgroundColor:COL.imcd, stack:'a'},
+      {label:'M&A Contribution %', data:maGr, backgroundColor:COL.green, stack:'a'},
+      {label:'FX Impact %', data:fxGr, backgroundColor:COL.blue, stack:'a'}
+    ]
+  },
+  options:{
+    ...baseOpts,
+    scales:{
+      x:{...baseOpts.scales.x, stacked:true},
+      y:{...baseOpts.scales.y, stacked:true, ticks:{...baseOpts.scales.y.ticks, callback:v=>v+'%'}}
+    }
+  }
+});
+
+//==================
+// 10. Capital allocation cumulative
+//==================
+new Chart(document.getElementById('capAllocChart'), {
+  type:'bar',
+  data:{
+    labels:['2017','2018','2019','2020','2021','2022','2023','2024','2025'],
+    datasets:[
+      {label:'M&A Spend (€M)', data:[169,141,90,372,177,234,357,362,437], backgroundColor:COL.imcd, stack:'a'},
+      {label:'Dividends Paid (€M)', data:[29,33,42,47,58,92,135,128,127], backgroundColor:COL.green, stack:'a'},
+      {label:'Capex (€M)', data:[13,13,18,18,19,21,37,26,20], backgroundColor:COL.blue, stack:'a'}
+    ]
+  },
+  options:{
+    ...baseOpts,
+    scales:{
+      x:{...baseOpts.scales.x, stacked:true},
+      y:{...baseOpts.scales.y, stacked:true, ticks:{...baseOpts.scales.y.ticks, callback:v=>'€'+v+'M'}}
+    }
+  }
+});
+
+//==================
+// 11. Scenario chart (horizontal bar)
+//==================
+new Chart(document.getElementById('scenChart'), {
+  type:'bar',
+  data:{
+    labels:['Bear (€60)','Base (€108)','Bull (€130)'],
+    datasets:[{
+      label:'Implied Share Price (€)',
+      data:[60,108,130],
+      backgroundColor:[COL.red, COL.imcd, COL.green],
+      borderRadius:6
+    }]
+  },
+  options:{
+    ...baseOpts,
+    indexAxis:'y',
+    plugins:{
+      ...baseOpts.plugins,
+      legend:{display:false},
+      tooltip:{...baseOpts.plugins.tooltip, callbacks:{label:(ctx)=>`€${ctx.parsed.x}`}}
+    },
+    scales:{
+      x:{...baseOpts.scales.x, ticks:{...baseOpts.scales.x.ticks, callback:v=>'€'+v}, min:40, max:140},
+      y:baseOpts.scales.y
+    }
+  }
+});
+
+//==================
+// 12. Multiple history
+//==================
+const yrsM = ['2014','2015','2016','2017','2018','2019','2020','2021','2022','2023','2024','2025','2026E'];
+const evEbita = [11.5, 13.2, 14.8, 15.6, 17.2, 18.4, 22.5, 24.1, 19.8, 18.5, 17.2, 13.5, 12.5];
+const median5y = Array(yrsM.length).fill(16.5);
+
+new Chart(document.getElementById('multChart'), {
+  type:'line',
+  data:{
+    labels:yrsM,
+    datasets:[
+      {label:'IMCD EV/EBITA', data:evEbita, borderColor:COL.imcd, backgroundColor:'rgba(232,93,39,0.13)', tension:0.4, borderWidth:2.5, pointRadius:3.5, fill:true, pointBackgroundColor:COL.imcd},
+      {label:'5-yr median (16.5x)', data:median5y, borderColor:COL.accent, borderWidth:2, borderDash:[6,4], pointRadius:0, fill:false}
+    ]
+  },
+  options:{
+    ...baseOpts,
+    scales:{
+      x:baseOpts.scales.x,
+      y:{...baseOpts.scales.y, ticks:{...baseOpts.scales.y.ticks, callback:v=>v+'x'}}
+    }
+  }
+});
+
+//==================
+// 13. Leaflet world map
+//==================
+const map = L.map('map', {
+  center:[35,15],
+  zoom:2,
+  minZoom:2,
+  maxZoom:8,
+  worldCopyJump:true,
+  zoomControl:true,
+  attributionControl:true,
+  scrollWheelZoom:false
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors © CARTO',
+  maxZoom:18
+}).addTo(map);
+
+const imcdIcon = L.divIcon({
+  className:'imcd-pin',
+  html:`<div style="width:14px;height:14px;border-radius:50%;background:#E85D27;border:2px solid #fff;box-shadow:0 0 8px rgba(232,93,39,0.7);"></div>`,
+  iconSize:[14,14], iconAnchor:[7,7]
+});
+const acquisitionIcon = L.divIcon({
+  className:'imcd-acq-pin',
+  html:`<div style="width:11px;height:11px;border-radius:50%;background:#34d399;border:2px solid #fff;box-shadow:0 0 7px rgba(52,211,153,0.6);"></div>`,
+  iconSize:[11,11], iconAnchor:[5.5,5.5]
+});
+const hqIcon = L.divIcon({
+  className:'imcd-hq-pin',
+  html:`<div style="width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid #E85D27;box-shadow:0 0 16px rgba(232,93,39,0.9);"></div>`,
+  iconSize:[18,18], iconAnchor:[9,9]
+});
+
+// Headquarters
+L.marker([51.92, 4.48], {icon:hqIcon}).addTo(map)
+ .bindPopup('<strong>Rotterdam, Netherlands</strong><br/>Global HQ since 1995<br/>5,200+ employees worldwide');
+
+// Major regional offices / hubs
+const offices = [
+ {lat:51.5, lng:-0.12, name:'London, UK', desc:'EMEA Hub · Major specialty distribution center'},
+ {lat:48.85, lng:2.35, name:'Paris, France', desc:'Beauty Studio Paris · Co-creates formulations with personal-care brands'},
+ {lat:50.11, lng:8.68, name:'Frankfurt, Germany', desc:'Coatings hub · Velox legacy operations'},
+ {lat:45.46, lng:9.19, name:'Milan, Italy', desc:'Tillmanns S.p.A. (acquired 2025) · R&D laboratory'},
+ {lat:40.42, lng:-3.70, name:'Madrid, Spain', desc:'Tecom + Ferrer (acquired 2025) · Food & food additives'},
+ {lat:40.71, lng:-74.00, name:'New York / NJ, USA', desc:'Americas regional headquarters'},
+ {lat:34.05, lng:-118.24, name:'Los Angeles, USA', desc:'West Coast life sciences hub'},
+ {lat:43.65, lng:-79.38, name:'Toronto, Canada', desc:'North America operations'},
+ {lat:23.55, lng:-46.63, name:'São Paulo, Brazil', desc:'Latin America hub'},
+ {lat:-33.45, lng:-70.66, name:'Santiago, Chile', desc:'Apus Química (acquired 2025) · Advanced materials'},
+ {lat:31.23, lng:121.47, name:'Shanghai, China', desc:'Life Science Laboratory hub (opened 2025) · Pharma, Food, Personal Care R&D'},
+ {lat:39.90, lng:116.40, name:'Beijing, China', desc:'Daoqin Biological (acquired 2025) · Food & Nutraceuticals'},
+ {lat:1.35, lng:103.82, name:'Singapore', desc:'APAC commercial hub'},
+ {lat:35.68, lng:139.69, name:'Tokyo, Japan', desc:'Specialty chemicals distribution'},
+ {lat:37.57, lng:126.98, name:'Seoul, South Korea', desc:'Dong Yang FT + YCAM (acquired 2025) · Cosmetic ingredients & pharma'},
+ {lat:19.08, lng:72.88, name:'Mumbai, India', desc:'Trichem Healthcare (acquired 2025) · Pharma APIs'},
+ {lat:-2.18, lng:106.13, name:'Indonesia', desc:'Construction Laboratory (opened 2025)'},
+ {lat:-33.87, lng:151.21, name:'Sydney, Australia', desc:'Oceania regional office'},
+ {lat:25.20, lng:55.27, name:'Dubai, UAE', desc:'Middle East / North Africa hub'},
+ {lat:30.04, lng:31.24, name:'Cairo, Egypt', desc:'MENA distribution operations'},
+ {lat:-26.20, lng:28.05, name:'Johannesburg, South Africa', desc:'Sub-Saharan Africa operations'},
+ {lat:55.75, lng:37.62, name:'Moscow, Russia', desc:'Eastern European operations'},
+ {lat:52.52, lng:13.40, name:'Berlin, Germany', desc:'Industrial chemicals operations'},
+ {lat:53.55, lng:9.99, name:'Hamburg, Germany', desc:'Northern Europe logistics hub'},
+ {lat:59.33, lng:18.07, name:'Stockholm, Sweden', desc:'Nordic distribution'},
+ {lat:50.85, lng:4.35, name:'Brussels, Belgium', desc:'BeNeLux operations'}
+];
+
+offices.forEach(o => {
+  L.marker([o.lat, o.lng], {icon:imcdIcon}).addTo(map)
+    .bindPopup(`<strong>${o.name}</strong><br/>${o.desc}`);
+});
+
+// 2025 acquisitions specifically
+const acquisitions = [
+ {lat:54.6, lng:-6.5, name:'Willows Ingredients (UK & Ireland)', desc:'Acquired Feb 2026 · Food, Sports & Animal Nutrition · €26M FY24 revenue'}
+];
+acquisitions.forEach(a => {
+  L.marker([a.lat, a.lng], {icon:acquisitionIcon}).addTo(map)
+    .bindPopup(`<strong>${a.name}</strong><br/>${a.desc}`);
+});
+
+// Map legend overlay
+const legend = L.control({position:'bottomleft'});
+legend.onAdd = function(){
+  const div = L.DomUtil.create('div', 'map-legend');
+  div.innerHTML = `
+    <div style="background:rgba(16,20,27,0.92);border:1px solid #252e3c;padding:10px 14px;border-radius:8px;font-size:12px;color:#cbd2dd;">
+      <div style="font-weight:700;color:#f08754;margin-bottom:6px;">IMCD GLOBAL FOOTPRINT</div>
+      <div style="display:flex;align-items:center;gap:6px;margin:4px 0;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #E85D27;"></span> Global HQ (Rotterdam)</div>
+      <div style="display:flex;align-items:center;gap:6px;margin:4px 0;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E85D27;"></span> Regional offices &amp; labs</div>
+      <div style="display:flex;align-items:center;gap:6px;margin:4px 0;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#34d399;"></span> 2026 acquisitions</div>
+      <div style="margin-top:6px;color:#8a93a3;font-size:10px;">60+ countries · 118 offices · 86 labs</div>
+    </div>`;
+  return div;
+};
+legend.addTo(map);
+
+map.on('click', () => map.scrollWheelZoom.enable());
+
+</script>
+
+</body>
+</html>
